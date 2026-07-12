@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react'
+import { useTimer } from '../context/TimerContext'
 import { supabase } from '../lib/supabase'
 import Navbar from '../components/Navbar'
 
 export default function Timer() {
   const [subjects, setSubjects]                   = useState([])
-  const [isRunning, setIsRunning]                 = useState(false)
-  const [seconds, setSeconds]                     = useState(0)
-  const [selectedSubject, setSelectedSubject]     = useState('')
-  const [selectedSubjectId, setSelectedSubjectId] = useState(null)
-  const [startTime, setStartTime]                 = useState(null)
+ const {
+  isRunning,
+  setIsRunning,
+  seconds,
+  setSeconds,
+  selectedSubject,
+  setSelectedSubject,
+  selectedSubjectId,
+  setSelectedSubjectId,
+  startTime,
+  setStartTime,
+} = useTimer()
   const [playerStats, setPlayerStats]             = useState(null)
   const [xpGained, setXpGained]                   = useState(null)
   const [showXPPopup, setShowXPPopup]             = useState(false)
@@ -18,13 +26,7 @@ export default function Timer() {
     fetchPlayerStats()
   }, [])
 
-  useEffect(() => {
-    let interval
-    if (isRunning) {
-      interval = setInterval(() => setSeconds(prev => prev + 1), 1000)
-    }
-    return () => clearInterval(interval)
-  }, [isRunning])
+ 
 
   async function fetchSubjects() {
     const { data: { user } } = await supabase.auth.getUser()
