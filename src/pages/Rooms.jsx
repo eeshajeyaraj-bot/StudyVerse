@@ -1,261 +1,194 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import Navbar from '../components/Navbar'
 import RoomView from '../components/RoomView'
 
 function randomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let code = ''
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)]
-  return code
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
 }
 
 export default function Rooms() {
-  const [userId, setUserId]           = useState(null)
+  const [userId, setUserId] = useState(null)
   const [displayName, setDisplayName] = useState('Scholar')
-  const [view, setView]               = useState('browse') // browse | create | join | room
+  const [view, setView] = useState('home')
   const [activeRoomId, setActiveRoomId] = useState(null)
-  const [openRooms, setOpenRooms]     = useState([])
-  const [loading, setLoading]         = useState(true)
-
-  // Create form state
-  const [roomName, setRoomName]   = useState('')
+  const [loading, setLoading] = useState(true)
+  const [roomName, setRoomName] = useState('')
   const [maxMembers, setMaxMembers] = useState(5)
-  const [creating, setCreating]   = useState(false)
-
-  // Join form state
-  const [joinCode, setJoinCode]   = useState('')
-  const [joining, setJoining]     = useState(false)
-
+  const [creating, setCreating] = useState(false)
+  const [joinCode, setJoinCode] = useState('')
+  const [joining, setJoining] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
+    async function getUser() {
+      const { data } = await supabase.auth.getUser()
+      if (data?.user) {
+        setUserId(data.user.id)
+        setDisplayName(data.user.email?.split('@')[0] || 'Scholar')
+      }
+      setLoading(false)
+    }
     getUser()
   }, [])
 
-  useEffect(() => {
-    if (view === 'browse' && userId) fetchOpenRooms()
-  }, [view, userId])
-
- async function getUser() {
-  const { data, error } = await supabase.auth.getUser()
-
-  console.log("USER DATA:", data)
-  console.log("USER:", data?.user)
-  console.log("ERROR:", error)
-
-  if (data?.user) {
-    setUserId(data.user.id)
-    setDisplayName(data.user.email?.split("@")[0] || "Scholar")
-  }
-
-  setLoading(false)
-}
-
-  async function fetchOpenRooms() {
-    const { data } = await supabase
-      .from('study_rooms')
-      .select('id, room_name, room_code, max_members, room_members(count)')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(20)
-    setOpenRooms(data || [])
-  }
-
   async function handleCreate() {
-    if (!roomName.trim()) { setError('Give your guild a name.'); return }
+    if (!roomName.trim()) return setError('Give your room a name.')
+    if (!userId) return setError('You must be signed in to create a room.')
     setCreating(true)
     setError('')
 
     for (let attempt = 0; attempt < 3; attempt++) {
       const code = randomCode()
-      const { data: newRoom, error: roomErr } = await supabase
+      const { data: room, error: roomError } = await supabase
         .from('study_rooms')
         .insert({ room_name: roomName.trim(), room_code: code, host_id: userId, max_members: maxMembers })
         .select()
         .single()
 
-      if (roomErr) {
-        if (roomErr.code === '23505') continue
-        setError(roomErr.message)
+      if (roomError) {
+        if (roomError.code === '23505') continue
+        setError(roomError.message)
         setCreating(false)
         return
       }
 
-      await supabase.from('room_members').insert({
-        room_id: newRoom.id, user_id: userId, display_name: displayName, status: 'studying',
+      const { error: memberError } = await supabase.from('room_members').insert({
+        room_id: room.id, user_id: userId, display_name: displayName, status: 'studying',
       })
 
-      setCreating(false)
+      if (memberError) {
+        setError(memberError.message)
+        setCreating(false)
+        return
+      }
+
       setRoomName('')
-      setActiveRoomId(newRoom.id)
+      setCreating(false)
+      setActiveRoomId(room.id)
       setView('room')
       return
     }
-    setError('Could not generate a unique room code, try again.')
+
+    setError('Could not generate a unique room code. Please try again.')
     setCreating(false)
   }
 
   async function handleJoin() {
     const code = joinCode.trim().toUpperCase()
-    if (code.length !== 6) { setError('Room codes are 6 characters.'); return }
+    if (code.length !== 6) return setError('Enter the 6-character room code shared by the host.')
+    if (!userId) return setError('You must be signed in to join a room.')
+
     setJoining(true)
     setError('')
 
-    const { data: room, error: roomErr } = await supabase
+    const { data: room, error: roomError } = await supabase
       .from('study_rooms')
       .select('*, room_members(count)')
       .eq('room_code', code)
       .eq('is_active', true)
       .single()
 
-    if (roomErr || !room) {
-      setError('No active guild found with that code.')
+    if (roomError || !room) {
+      setError('No active room was found with that code.')
       setJoining(false)
       return
     }
 
-    const currentCount = room.room_members?.[0]?.count ?? 0
-    if (currentCount >= room.max_members) {
-      setError('That guild is full.')
+    const count = room.room_members?.[0]?.count ?? 0
+    if (count >= room.max_members) {
+      setError('That room is full.')
       setJoining(false)
       return
     }
 
-    const { error: joinErr } = await supabase.from('room_members').upsert(
+    const { error: joinError } = await supabase.from('room_members').upsert(
       { room_id: room.id, user_id: userId, display_name: displayName, status: 'studying' },
       { onConflict: 'room_id,user_id' }
     )
 
-    if (joinErr) { setError(joinErr.message); setJoining(false); return }
+    if (joinError) {
+      setError(joinError.message)
+      setJoining(false)
+      return
+    }
 
-    setJoining(false)
     setJoinCode('')
+    setJoining(false)
     setActiveRoomId(room.id)
     setView('room')
   }
 
-  async function quickJoin(room) {
-    await supabase.from('room_members').upsert(
-      { room_id: room.id, user_id: userId, display_name: displayName, status: 'studying' },
-      { onConflict: 'room_id,user_id' }
-    )
-    setActiveRoomId(room.id)
-    setView('room')
+  function backHome() {
+    setActiveRoomId(null)
+    setView('home')
+    setError('')
   }
+
+  if (loading) return <div className="sv-page"><div className="sv-container">Loading rooms...</div></div>
 
   return (
     <div className="sv-page">
-      <Navbar />
       <div className="sv-container" style={{ paddingTop: '28px' }}>
-
         {view === 'room' && activeRoomId ? (
-          <RoomView
-            roomId={activeRoomId}
-            userId={userId}
-            onLeft={() => { setActiveRoomId(null); setView('browse') }}
-          />
+          <RoomView roomId={activeRoomId} userId={userId} onLeft={backHome} />
         ) : (
           <>
-            {/* Header */}
-            <div style={s.header}>
+            <div style={styles.header}>
               <div>
-                <p style={s.welcomeLabel}>Study Together</p>
-                <h1 style={s.pageTitle}>Study <span style={s.accent}>Rooms</span></h1>
+                <p style={styles.label}>Study Together</p>
+                <h1 style={styles.title}>Study <span style={styles.accent}>Rooms</span></h1>
+                <p style={styles.subtitle}>Private study rooms. A room can only be joined with its unique invite code.</p>
               </div>
-              {view !== 'browse' && (
-                <button className="sv-btn-ghost" onClick={() => { setView('browse'); setError('') }}>
-                  ← Back
-                </button>
-              )}
+              {view !== 'home' && <button className="sv-btn-ghost" onClick={backHome}>← Back</button>}
             </div>
 
-            {view === 'browse' && (
-              <>
-                <div style={s.actionsRow}>
-                  <button className="sv-btn-primary" onClick={() => setView('create')}>
-                    + Create Guild
-                  </button>
-                  <button className="sv-btn-ghost" onClick={() => setView('join')}>
-                    Join Guild
-                  </button>
-                </div>
-
-                <p className="sv-section-label" style={{ marginTop: '24px' }}>
-                  Open Guilds ({openRooms.length})
-                </p>
-
-                {loading ? (
-                  <div style={s.empty}>Loading guilds...</div>
-                ) : openRooms.length === 0 ? (
-                  <div style={s.empty}>No open guilds right now. Start one! 🏰</div>
-                ) : (
-                  <div style={s.roomGrid}>
-                    {openRooms.map(r => {
-                      const count = r.room_members?.[0]?.count ?? 0
-                      const full = count >= r.max_members
-                      return (
-                        <div key={r.id} className="sv-card" style={s.roomCard}>
-                          <div>
-                            <div style={s.roomName}>🏰 {r.room_name}</div>
-                            <span className="sv-badge">{count}/{r.max_members} members</span>
-                          </div>
-                          <button
-                            className="sv-btn-primary"
-                            disabled={full}
-                            style={full ? { opacity: 0.4, cursor: 'not-allowed' } : {}}
-                            onClick={() => quickJoin(r)}
-                          >
-                            {full ? 'Full' : 'Join'}
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </>
+            {view === 'home' && (
+              <div style={styles.grid}>
+                <button className="sv-card sv-room-choice" onClick={() => { setView('create'); setError('') }}>
+                  <span style={styles.icon}>🏰</span>
+                  <strong style={styles.choiceTitle}>Create a Private Room</strong>
+                  <span style={styles.choiceText}>Create a room and receive a random 6-character invite code.</span>
+                </button>
+                <button className="sv-card sv-room-choice" onClick={() => { setView('join'); setError('') }}>
+                  <span style={styles.icon}>🔐</span>
+                  <strong style={styles.choiceTitle}>Join with Code</strong>
+                  <span style={styles.choiceText}>Enter the exact code given to you by the room host.</span>
+                </button>
+              </div>
             )}
 
             {view === 'create' && (
-              <div className="sv-card" style={{ maxWidth: '420px' }}>
-                <p className="sv-section-label">Create Guild</p>
-                <div style={s.formCol}>
-                  <input
-                    type="text"
-                    placeholder="Guild name (e.g. Night Study)"
-                    value={roomName}
-                    onChange={e => setRoomName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleCreate()}
-                    maxLength={40}
-                  />
+              <div className="sv-card" style={{ maxWidth: 520 }}>
+                <p className="sv-section-label">Create Private Room</p>
+                <p style={styles.helper}>StudyVerse generates the invite code automatically. Only people with that code can join.</p>
+                <div style={styles.form}>
+                  <input value={roomName} onChange={e => setRoomName(e.target.value)} placeholder="Room name" maxLength={40} onKeyDown={e => e.key === 'Enter' && handleCreate()} />
                   <select value={maxMembers} onChange={e => setMaxMembers(Number(e.target.value))}>
                     {[2, 3, 4, 5, 6, 8].map(n => <option key={n} value={n}>{n} members</option>)}
                   </select>
-                  {error && <p style={s.errorText}>{error}</p>}
-                  <button className="sv-btn-primary" onClick={handleCreate} disabled={creating}>
-                    {creating ? 'Creating...' : '🏰 Create Guild'}
-                  </button>
+                  {error && <p style={styles.error}>{error}</p>}
+                  <button className="sv-btn-primary" onClick={handleCreate} disabled={creating}>{creating ? 'Creating...' : '🏰 Create Private Room'}</button>
                 </div>
               </div>
             )}
 
             {view === 'join' && (
-              <div className="sv-card" style={{ maxWidth: '420px' }}>
-                <p className="sv-section-label">Join Guild</p>
-                <div style={s.formCol}>
+              <div className="sv-card" style={{ maxWidth: 520 }}>
+                <p className="sv-section-label">Join Private Room</p>
+                <p style={styles.helper}>There is no public room browser or quick-join button. You need the 6-character invite code.</p>
+                <div style={styles.form}>
                   <input
-                    type="text"
-                    placeholder="Room code (e.g. AB12CD)"
                     value={joinCode}
-                    onChange={e => setJoinCode(e.target.value.toUpperCase())}
-                    onKeyDown={e => e.key === 'Enter' && handleJoin()}
+                    onChange={e => setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+                    placeholder="ENTER CODE"
                     maxLength={6}
-                    style={{ textTransform: 'uppercase', letterSpacing: '3px', textAlign: 'center' }}
+                    autoComplete="off"
+                    style={styles.code}
+                    onKeyDown={e => e.key === 'Enter' && handleJoin()}
                   />
-                  {error && <p style={s.errorText}>{error}</p>}
-                  <button className="sv-btn-primary" onClick={handleJoin} disabled={joining}>
-                    {joining ? 'Joining...' : '⚔️ Join Guild'}
-                  </button>
+                  {error && <p style={styles.error}>{error}</p>}
+                  <button className="sv-btn-primary" onClick={handleJoin} disabled={joining || joinCode.length !== 6}>{joining ? 'Checking code...' : '🔐 Join with Code'}</button>
                 </div>
               </div>
             )}
@@ -266,27 +199,18 @@ export default function Rooms() {
   )
 }
 
-const s = {
-  header: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    flexWrap: 'wrap', gap: '16px', marginBottom: '24px',
-  },
-  welcomeLabel: { fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px', fontWeight: 500 },
-  pageTitle: { fontSize: '28px', fontWeight: 700, color: '#f1e8ff', lineHeight: 1.2 },
-  accent: {
-    background: 'linear-gradient(90deg, #f0abfc, #a855f7)',
-    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-  },
-  actionsRow: { display: 'flex', gap: '12px', flexWrap: 'wrap' },
-  roomGrid: {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '14px',
-  },
-  roomCard: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '16px 18px', margin: 0,
-  },
-  roomName: { fontSize: '15px', fontWeight: 700, color: '#f1e8ff', marginBottom: '6px' },
-  formCol: { display: 'flex', flexDirection: 'column', gap: '12px' },
-  errorText: { fontSize: '13px', color: '#f87171' },
-  empty: { textAlign: 'center', color: 'rgba(255,255,255,0.3)', padding: '40px 20px', fontSize: '14px' },
+const styles = {
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 28 },
+  label: { fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 4, fontWeight: 500 },
+  title: { fontSize: 30, fontWeight: 700, color: '#f1e8ff', lineHeight: 1.2 },
+  accent: { background: 'linear-gradient(90deg, #f0abfc, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' },
+  subtitle: { marginTop: 10, color: 'rgba(255,255,255,0.5)', maxWidth: 620, lineHeight: 1.5 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 18, maxWidth: 760 },
+  icon: { fontSize: 36, marginBottom: 14 },
+  choiceTitle: { fontSize: 18, color: '#f1e8ff' },
+  choiceText: { fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, marginTop: 8 },
+  helper: { fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, margin: '8px 0 18px' },
+  form: { display: 'flex', flexDirection: 'column', gap: 12 },
+  code: { textTransform: 'uppercase', letterSpacing: 6, textAlign: 'center', fontWeight: 700 },
+  error: { fontSize: 13, color: '#f87171' },
 }
