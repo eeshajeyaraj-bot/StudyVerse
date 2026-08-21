@@ -74,6 +74,17 @@ $$;
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
 
+-- Backfill users who already existed before the social tables were introduced.
+insert into public.profiles (id, display_name, username, emoji_avatar, age_range)
+select
+  id,
+  coalesce(nullif(raw_user_meta_data->>'display_name',''), 'StudyVerse member'),
+  nullif(lower(raw_user_meta_data->>'username'), ''),
+  coalesce(nullif(raw_user_meta_data->>'emoji_avatar',''), '👤'),
+  nullif(raw_user_meta_data->>'age_range','')
+from auth.users
+on conflict (id) do nothing;
+
 alter table public.profiles enable row level security;
 alter table public.friendships enable row level security;
 alter table public.direct_messages enable row level security;
