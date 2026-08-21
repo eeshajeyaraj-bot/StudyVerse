@@ -3,231 +3,48 @@ import { supabase } from '../lib/supabase'
 import { Link } from 'react-router-dom'
 
 export default function Signup() {
-  const [email, setEmail]       = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [username, setUsername] = useState('')
+  const [ageRange, setAgeRange] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirm, setConfirm]   = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
-  const [success, setSuccess]   = useState(false)
+  const [confirm, setConfirm] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
 
   async function handleSignup() {
-    if (!email || !password || !confirm) { setError('Please fill in all fields'); return }
-    if (password !== confirm)            { setError('Passwords do not match');    return }
-    if (password.length < 6)            { setError('Password must be at least 6 characters'); return }
-
-    setLoading(true)
-    setError('')
-
-    const { error } = await supabase.auth.signUp({ email, password })
-
+    if (!displayName || !username || !ageRange || !email || !password || !confirm) return setError('Please fill in all fields')
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) return setError('Username must be 3–20 characters using letters, numbers or _')
+    if (password !== confirm) return setError('Passwords do not match')
+    if (password.length < 6) return setError('Password must be at least 6 characters')
+    setLoading(true); setError('')
+    const { error } = await supabase.auth.signUp({
+      email, password,
+      options: { data: { display_name: displayName.trim(), username: username.toLowerCase(), age_range: ageRange, emoji_avatar: '👤', status: 'Available' } },
+    })
     setLoading(false)
-    if (error) {
-      setError(error.message)
-    } else {
-      setSuccess(true)
-    }
+    if (error) setError(error.message); else setSuccess(true)
   }
 
-  if (success) {
-    return (
-      <div style={s.page}>
-        <div style={s.card}>
-          <div style={s.successIcon}>📩</div>
-          <h2 style={s.title}>Almost there!</h2>
-          <p style={s.subtitle}>
-            We sent a verification link to <strong style={{ color: '#f0abfc' }}>{email}</strong>.
-            Click it to activate your account, then come back and log in.
-          </p>
-          <Link to="/login" style={s.loginBtn}>Go to Login →</Link>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div style={s.page}>
-      <div style={s.card}>
-        {/* Logo */}
-        <div style={s.logoRow}>
-          <span style={s.logoIcon}>🌌</span>
-          <span style={s.logoText}>StudyVerse</span>
-        </div>
-
-        <h1 style={s.title}>Create Account</h1>
-        <p style={s.subtitle}>Join thousands of students leveling up their studies</p>
-
-        {error && (
-          <div style={s.errorBox}>⚠️ {error}</div>
-        )}
-
-        <div style={s.form}>
-          <div style={s.fieldGroup}>
-            <label style={s.label}>Email</label>
-            <input
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={e => { setEmail(e.target.value); setError('') }}
-              style={s.input}
-            />
-          </div>
-
-          <div style={s.fieldGroup}>
-            <label style={s.label}>Password</label>
-            <input
-              type="password"
-              placeholder="Min. 6 characters"
-              value={password}
-              onChange={e => { setPassword(e.target.value); setError('') }}
-              style={s.input}
-            />
-          </div>
-
-          <div style={s.fieldGroup}>
-            <label style={s.label}>Confirm Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={confirm}
-              onChange={e => { setConfirm(e.target.value); setError('') }}
-              onKeyDown={e => e.key === 'Enter' && handleSignup()}
-              style={s.input}
-            />
-          </div>
-
-          <button
-            style={{ ...s.submitBtn, ...(loading ? s.submitBtnLoading : {}) }}
-            onClick={handleSignup}
-            disabled={loading}
-          >
-            {loading ? 'Creating account...' : '🚀 Start Your Quest'}
-          </button>
-        </div>
-
-        <p style={s.switchText}>
-          Already have an account?{' '}
-          <Link to="/login" style={s.switchLink}>Sign in →</Link>
-        </p>
-      </div>
-    </div>
-  )
+  return <div className="auth-page"><div className="auth-shell">
+    <section className="auth-intro"><div className="auth-brand"><span className="auth-brand-icon">◉</span><span>StudyVerse</span></div><div className="auth-intro-content"><span className="auth-kicker">START YOUR STUDY SPACE</span><h1>Make study time<br/><span>work for you.</span></h1><p>Create a personal workspace for focused sessions, subjects, tasks and studying together.</p><div className="auth-points"><span>✓ Personal profile</span><span>✓ Focus sessions</span><span>✓ Study together</span></div></div><small className="auth-footer">© StudyVerse</small></section>
+    <section className="auth-form-panel"><div className="auth-form-wrap"><div className="auth-mobile-brand"><span className="auth-brand-icon">◉</span><span>StudyVerse</span></div>
+      {success ? <div className="auth-success"><div className="auth-success-icon">✓</div><span className="auth-kicker">ONE LAST STEP</span><h2>Check your inbox</h2><p>We sent a verification link to <strong>{email}</strong>. Verify your email, then sign in to continue.</p><Link to="/login" className="auth-submit">Go to sign in</Link></div> : <>
+        <div className="auth-heading"><span>Get started</span><h2>Create your account</h2><p>Tell us a little about your study profile.</p></div>
+        {error && <div className="auth-error">{error}</div>}
+        <div className="auth-form auth-form-grid">
+          <label>Display name<input placeholder="How should we call you?" value={displayName} onChange={e=>{setDisplayName(e.target.value);setError('')}} autoComplete="name"/></label>
+          <label>Username<input placeholder="e.g. eesha_studies" value={username} onChange={e=>{setUsername(e.target.value.replace(/\s/g,''));setError('')}} autoComplete="username"/></label>
+          <label>Age range<select value={ageRange} onChange={e=>{setAgeRange(e.target.value);setError('')}}><option value="">Select age range</option><option>Under 13</option><option>13–15</option><option>16–17</option><option>18–24</option><option>25–34</option><option>35+</option><option>Prefer not to say</option></select></label>
+          <label>Email<input type="email" placeholder="you@example.com" value={email} onChange={e=>{setEmail(e.target.value);setError('')}} autoComplete="email"/></label>
+          <label>Password<input type="password" placeholder="At least 6 characters" value={password} onChange={e=>{setPassword(e.target.value);setError('')}} autoComplete="new-password"/></label>
+          <label>Confirm password<input type="password" placeholder="Re-enter your password" value={confirm} onChange={e=>{setConfirm(e.target.value);setError('')}} onKeyDown={e=>e.key==='Enter'&&handleSignup()} autoComplete="new-password"/></label>
+          <button className="auth-submit auth-full" onClick={handleSignup} disabled={loading}>{loading?'Creating account…':'Create account'}</button>
+        </div><p className="auth-switch">Already have an account? <Link to="/login">Sign in</Link></p>
+      </>}
+    </div></section>
+  </div><style>{CSS}</style></div>
 }
 
-const s = {
-  page: {
-    minHeight: '100vh',
-    background: 'linear-gradient(160deg, #0f0a1e 0%, #1a1035 50%, #0f0a1e 100%)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px',
-  },
-  card: {
-    width: '100%',
-    maxWidth: '400px',
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(168, 85, 247, 0.25)',
-    borderRadius: '20px',
-    padding: '36px 32px',
-    backdropFilter: 'blur(16px)',
-    textAlign: 'center',
-  },
-  logoRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    marginBottom: '24px',
-  },
-  logoIcon: { fontSize: '24px' },
-  logoText: {
-    fontWeight: 700,
-    fontSize: '20px',
-    background: 'linear-gradient(90deg, #f0abfc, #a855f7)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-  },
-  title: {
-    fontSize: '22px',
-    fontWeight: 700,
-    color: '#f1e8ff',
-    textAlign: 'center',
-    marginBottom: '6px',
-  },
-  subtitle: {
-    fontSize: '13px',
-    color: 'rgba(255,255,255,0.35)',
-    textAlign: 'center',
-    marginBottom: '24px',
-    lineHeight: 1.6,
-  },
-  errorBox: {
-    background: 'rgba(248, 113, 113, 0.1)',
-    border: '1px solid rgba(248, 113, 113, 0.3)',
-    borderRadius: '10px',
-    padding: '10px 14px',
-    color: '#f87171',
-    fontSize: '13px',
-    marginBottom: '16px',
-    textAlign: 'left',
-  },
-  successIcon: { fontSize: '48px', textAlign: 'center', marginBottom: '16px' },
-  form: { display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' },
-  fieldGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  label: { fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' },
-  input: {
-    background: 'rgba(255,255,255,0.05)',
-    border: '1px solid rgba(168, 85, 247, 0.2)',
-    borderRadius: '10px',
-    color: '#f1e8ff',
-    padding: '11px 14px',
-    fontSize: '14px',
-    outline: 'none',
-    width: '100%',
-    fontFamily: 'Inter, sans-serif',
-    boxSizing: 'border-box',
-    transition: 'border-color 0.2s',
-  },
-  submitBtn: {
-    width: '100%',
-    padding: '13px',
-    background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-    border: 'none',
-    borderRadius: '11px',
-    color: '#fff',
-    fontSize: '15px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    boxShadow: '0 4px 16px rgba(124, 58, 237, 0.35)',
-    transition: 'all 0.2s',
-    marginTop: '4px',
-    fontFamily: 'Inter, sans-serif',
-  },
-  submitBtnLoading: {
-    opacity: 0.7,
-    cursor: 'not-allowed',
-  },
-  loginBtn: {
-    display: 'block',
-    textAlign: 'center',
-    marginTop: '20px',
-    padding: '12px',
-    background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-    borderRadius: '11px',
-    color: '#fff',
-    fontWeight: 700,
-    fontSize: '14px',
-    textDecoration: 'none',
-  },
-  switchText: {
-    textAlign: 'center',
-    fontSize: '13px',
-    color: 'rgba(255,255,255,0.35)',
-    marginTop: '20px',
-  },
-  switchLink: {
-    color: '#c084fc',
-    textDecoration: 'none',
-    fontWeight: 600,
-  },
-}
+const CSS=`.auth-page{min-height:100vh;background:#f5f7fa;color:#17212d;font-family:Inter,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:28px;box-sizing:border-box}.auth-shell{width:min(1120px,100%);min-height:680px;background:#fff;border:1px solid #dfe4ea;border-radius:28px;overflow:hidden;display:grid;grid-template-columns:1.02fr .98fr;box-shadow:0 24px 70px rgba(25,35,50,.1)}.auth-intro{padding:46px;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(145deg,#eef2f7,#f8fafc);border-right:1px solid #e2e7ed}.auth-brand,.auth-mobile-brand{display:flex;align-items:center;gap:10px;font-size:21px;font-weight:750}.auth-brand-icon{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:#315f9e;color:#fff}.auth-intro-content{max-width:480px}.auth-kicker{font-size:11px;font-weight:750;letter-spacing:1.5px;color:#6b7b8e}.auth-intro h1{font-size:48px;line-height:1.08;letter-spacing:-1.8px;margin:16px 0;color:#182331}.auth-intro h1 span{color:#315f9e}.auth-intro p{font-size:16px;line-height:1.7;color:#667487}.auth-points{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}.auth-points span{padding:9px 12px;border:1px solid #d8e0e9;border-radius:999px;background:#fff;color:#526173;font-size:12px;font-weight:650}.auth-footer{color:#8a96a5}.auth-form-panel{display:flex;align-items:center;justify-content:center;padding:42px;background:#fff}.auth-form-wrap{width:min(430px,100%)}.auth-mobile-brand{display:none;margin-bottom:30px}.auth-heading>span{font-size:12px;font-weight:700;color:#6d7b8c}.auth-heading h2,.auth-success h2{font-size:30px;letter-spacing:-1px;margin:8px 0;color:#17212d}.auth-heading p{margin:0 0 24px;color:#748193;font-size:14px}.auth-error{padding:12px 14px;border-radius:12px;background:#fff2f2;border:1px solid #f2caca;color:#b42318;font-size:13px;line-height:1.5;margin-bottom:16px}.auth-form{display:flex;flex-direction:column;gap:15px}.auth-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.auth-form label{font-size:12px;font-weight:700;color:#455366}.auth-form input,.auth-form select{display:block;width:100%;box-sizing:border-box;margin-top:7px;padding:12px 13px;border:1px solid #d7dee7;border-radius:11px;background:#fbfcfd;color:#17212d;font-size:13px;outline:none}.auth-form input::placeholder{color:#9aa6b4}.auth-form input:focus,.auth-form select:focus{border-color:#315f9e;box-shadow:0 0 0 3px rgba(49,95,158,.1);background:#fff}.auth-submit{border:0;border-radius:11px;padding:13px;background:#315f9e;color:#fff;font-size:14px;font-weight:750;cursor:pointer;text-align:center;text-decoration:none;box-sizing:border-box}.auth-full{grid-column:1/-1;width:100%;box-shadow:0 8px 18px rgba(49,95,158,.18)}.auth-submit:disabled{opacity:.65;cursor:not-allowed}.auth-switch{text-align:center;margin:22px 0 0;color:#7a8797;font-size:13px}.auth-switch a{color:#315f9e;text-decoration:none;font-weight:700}.auth-success{text-align:center}.auth-success-icon{width:64px;height:64px;border-radius:20px;background:#e9f5ed;color:#21814b;display:grid;place-items:center;font-size:30px;font-weight:800;margin:0 auto 24px}.auth-success p{font-size:14px;line-height:1.7;color:#748193;margin:0 0 26px}.auth-success p strong{color:#315f9e}@media(max-width:820px){.auth-page{padding:16px}.auth-shell{grid-template-columns:1fr;min-height:auto}.auth-intro{display:none}.auth-form-panel{padding:38px 26px}.auth-mobile-brand{display:flex}.auth-heading h2{font-size:28px}}@media(max-width:520px){.auth-form-grid{grid-template-columns:1fr}.auth-full{grid-column:auto}}@media(max-width:430px){.auth-page{padding:0;background:#fff}.auth-shell{border:0;border-radius:0;box-shadow:none;min-height:100vh}.auth-form-panel{padding:28px 20px}}`
