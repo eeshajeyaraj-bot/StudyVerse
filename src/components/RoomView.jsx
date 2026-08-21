@@ -1,249 +1,28 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-const STATUS_ICON = { studying: '🟢', break: '🟡', offline: '⚫' }
+const STATUS_ICON={studying:'🟢',break:'🟡',offline:'⚫'}
+function formatTime(s){return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`}
 
-function formatTime(totalSeconds) {
-  const hrs  = String(Math.floor(totalSeconds / 3600)).padStart(2, '0')
-  const mins = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0')
-  const secs = String(totalSeconds % 60).padStart(2, '0')
-  return `${hrs}:${mins}:${secs}`
+export default function RoomView({roomId,userId,onLeft}){
+ const [room,setRoom]=useState(null),[members,setMembers]=useState([]),[elapsed,setElapsed]=useState(0),[subjectInput,setSubjectInput]=useState(''),[loading,setLoading]=useState(true);const tickRef=useRef(null)
+ useEffect(()=>{fetchRoom();fetchMembers()},[roomId])
+ async function fetchRoom(){const {data}=await supabase.from('study_rooms').select('*').eq('id',roomId).single();setRoom(data);setLoading(false)}
+ async function fetchMembers(){const {data}=await supabase.from('room_members').select('*').eq('room_id',roomId).order('joined_at',{ascending:true});setMembers(data||[])}
+ useEffect(()=>{const channel=supabase.channel(`room-${roomId}`).on('postgres_changes',{event:'UPDATE',schema:'public',table:'study_rooms',filter:`id=eq.${roomId}`},p=>setRoom(p.new)).on('postgres_changes',{event:'*',schema:'public',table:'room_members',filter:`room_id=eq.${roomId}`},p=>setMembers(prev=>p.eventType==='INSERT'?[...prev,p.new]:p.eventType==='UPDATE'?prev.map(m=>m.id===p.new.id?p.new:m):p.eventType==='DELETE'?prev.filter(m=>m.id!==p.old.id):prev)).subscribe();return()=>supabase.removeChannel(channel)},[roomId])
+ useEffect(()=>{clearInterval(tickRef.current);if(room?.timer_status==='running'&&room?.timer_started_at){const start=new Date(room.timer_started_at).getTime();tickRef.current=setInterval(()=>setElapsed(Math.floor((Date.now()-start)/1000)),1000)}else setElapsed(0);return()=>clearInterval(tickRef.current)},[room?.timer_status,room?.timer_started_at])
+ const isHost=room?.host_id===userId,isRunning=room?.timer_status==='running'
+ async function startSession(){const {error}=await supabase.from('study_rooms').update({timer_status:'running',timer_started_at:new Date().toISOString(),current_subject:subjectInput||'General Study'}).eq('id',roomId);if(error)alert(error.message)}
+ async function endSession(){if(!room?.timer_started_at)return;const startedAt=room.timer_started_at,endedAt=new Date().toISOString(),durationSeconds=Math.floor((new Date(endedAt)-new Date(startedAt))/1000);if(durationSeconds<=0)return;const studyingMembers=members.filter(m=>m.status==='studying'),xpEarned=Math.floor(durationSeconds/60)*2;if(studyingMembers.length){const {error}=await supabase.from('room_sessions').insert(studyingMembers.map(m=>({room_id:roomId,user_id:m.user_id,subject:room.current_subject,started_at:startedAt,ended_at:endedAt,duration_seconds:durationSeconds,xp_earned:xpEarned})));if(error)alert(error.message)}const {error}=await supabase.from('study_rooms').update({timer_status:'idle',timer_started_at:null}).eq('id',roomId);if(error)alert(error.message)}
+ async function setMyStatus(status){const {error}=await supabase.from('room_members').update({status}).eq('room_id',roomId).eq('user_id',userId);if(error)alert(error.message)}
+ async function leaveRoom(){await supabase.from('room_members').delete().eq('room_id',roomId).eq('user_id',userId);onLeft?.()}
+ if(loading||!room)return <div className="sv-card" style={{textAlign:'center',color:'var(--app-muted)'}}>Loading room...</div>
+ return <div>
+  <div style={s.header}><div><p style={s.label}>Study Room</p><h1 style={s.title}>{room.room_name}</h1><p style={s.subtitle}>Private focus space · {members.length} of {room.max_members} members</p></div><div style={s.code}><span>Room code</span><strong>{room.room_code}</strong></div></div>
+  <div className="sv-card"><p className="sv-section-label">Members</p><div style={s.list}>{members.map(m=><div key={m.id} style={s.member}><div style={s.memberLeft}><span style={{fontSize:18}}>{m.user_id===room.host_id?'●':'○'}</span><span>{m.display_name}</span></div><span className="sv-badge">{STATUS_ICON[m.status]||'⚫'} {m.status}</span></div>)}</div></div>
+  <div className="sv-card" style={s.timer}><p className="sv-section-label">Shared Study Session · {room.current_subject||'General Study'}</p><div style={{...s.clock,color:isRunning?'var(--app-accent)':'var(--app-muted)'}}>{formatTime(elapsed)}</div><p style={s.status}>{isRunning?'Session in progress':'Ready when you are'}</p>{isHost?(isRunning?<button onClick={endSession} style={s.full}>End Session</button>:<div style={s.start}><input placeholder="Subject (optional)" value={subjectInput} onChange={e=>setSubjectInput(e.target.value)}/><button onClick={startSession}>Start Session</button></div>):<p style={s.hint}>Only the room host can start or end the shared session.</p>}</div>
+  <div className="sv-card"><p className="sv-section-label">My Status</p><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button onClick={()=>setMyStatus('studying')}>🟢 Studying</button><button onClick={()=>setMyStatus('break')}>🟡 Break</button></div></div>
+  <button onClick={leaveRoom} style={s.leave}>Leave Room</button>
+ </div>
 }
-
-export default function RoomView({ roomId, userId, onLeft }) {
-  const [room, setRoom]       = useState(null)
-  const [members, setMembers] = useState([])
-  const [elapsed, setElapsed] = useState(0)
-  const [subjectInput, setSubjectInput] = useState('')
-  const [loading, setLoading] = useState(true)
-  const tickRef = useRef(null)
-
-  useEffect(() => {
-    fetchRoom()
-    fetchMembers()
-  }, [roomId])
-
-  async function fetchRoom() {
-    const { data } = await supabase.from('study_rooms').select('*').eq('id', roomId).single()
-    setRoom(data)
-    setLoading(false)
-  }
-
-  async function fetchMembers() {
-    const { data } = await supabase
-      .from('room_members')
-      .select('*')
-      .eq('room_id', roomId)
-      .order('joined_at', { ascending: true })
-    setMembers(data || [])
-  }
-
-  // Realtime subscription
-  useEffect(() => {
-    const channel = supabase
-      .channel(`room-${roomId}`)
-      .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'study_rooms', filter: `id=eq.${roomId}` },
-        payload => setRoom(payload.new)
-      )
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'room_members', filter: `room_id=eq.${roomId}` },
-        payload => {
-          setMembers(prev => {
-            if (payload.eventType === 'INSERT') return [...prev, payload.new]
-            if (payload.eventType === 'UPDATE') return prev.map(m => m.id === payload.new.id ? payload.new : m)
-            if (payload.eventType === 'DELETE') return prev.filter(m => m.id !== payload.old.id)
-            return prev
-          })
-        }
-      )
-      .subscribe()
-
-    return () => supabase.removeChannel(channel)
-  }, [roomId])
-
-  // Local ticking clock synced off timer_started_at
-  useEffect(() => {
-    clearInterval(tickRef.current)
-    if (room?.timer_status === 'running' && room?.timer_started_at) {
-      const start = new Date(room.timer_started_at).getTime()
-      tickRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000)
-    } else {
-      setElapsed(0)
-    }
-    return () => clearInterval(tickRef.current)
-  }, [room?.timer_status, room?.timer_started_at])
-
-  const isHost    = room?.host_id === userId
-  const isRunning = room?.timer_status === 'running'
-
-  async function startQuest() {
-    await supabase.from('study_rooms').update({
-      timer_status: 'running',
-      timer_started_at: new Date().toISOString(),
-      current_subject: subjectInput || 'General',
-    }).eq('id', roomId)
-  }
-
-  async function endQuest() {
-    if (!room?.timer_started_at) return
-    const startedAt = room.timer_started_at
-    const endedAt = new Date().toISOString()
-    const durationSeconds = Math.floor((new Date(endedAt) - new Date(startedAt)) / 1000)
-    if (durationSeconds <= 0) return
-
-    const studyingMembers = members.filter(m => m.status === 'studying')
-    const xpEarned = Math.floor(durationSeconds / 60) * 2 // same 2 XP/min rule as Timer.jsx
-
-    if (studyingMembers.length > 0) {
-      await supabase.from('room_sessions').insert(
-        studyingMembers.map(m => ({
-          room_id: roomId,
-          user_id: m.user_id,
-          subject: room.current_subject,
-          started_at: startedAt,
-          ended_at: endedAt,
-          duration_seconds: durationSeconds,
-          xp_earned: xpEarned,
-        }))
-      )
-
-      // Bump XP for the current user if they were studying (same pattern as Timer.jsx)
-      const wasStudying = studyingMembers.some(m => m.user_id === userId)
-      if (wasStudying) {
-        // Same lookup pattern Timer.jsx uses (single-row player_stats table)
-        const { data: rows } = await supabase.from('player_stats').select('*')
-        const current = rows?.[0]
-        if (current) {
-          const newXP = current.xp + xpEarned
-          const newLevel = Math.floor(newXP / 100) + 1
-          await supabase.from('player_stats').update({ xp: newXP, level: newLevel }).eq('id', current.id)
-        }
-      }
-    }
-
-    await supabase.from('study_rooms').update({ timer_status: 'idle', timer_started_at: null }).eq('id', roomId)
-  }
-
-  async function setMyStatus(status) {
-    await supabase.from('room_members').update({ status }).eq('room_id', roomId).eq('user_id', userId)
-  }
-
-  async function leaveRoom() {
-    await supabase.from('room_members').delete().eq('room_id', roomId).eq('user_id', userId)
-    onLeft?.()
-  }
-
-  if (loading || !room) {
-    return <div className="sv-card" style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>Loading guild...</div>
-  }
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={s.header}>
-        <div>
-          <p style={s.welcomeLabel}>Study Room</p>
-          <h1 style={s.pageTitle}>🏰 <span style={s.accent}>{room.room_name}</span></h1>
-        </div>
-        <div style={s.codeBadge}>
-          <span style={s.codeLabel}>Room Code</span>
-          <span style={s.codeValue}>{room.room_code}</span>
-        </div>
-      </div>
-
-      {/* Party Members */}
-      <div className="sv-card">
-        <p className="sv-section-label">Party Members ({members.length}/{room.max_members})</p>
-        <div style={s.memberList}>
-          {members.map(m => (
-            <div key={m.id} style={s.memberRow}>
-              <div style={s.memberLeft}>
-                <span>{m.user_id === room.host_id ? '👑' : '⚔️'}</span>
-                <span style={s.memberName}>{m.display_name}</span>
-              </div>
-              <span className="sv-badge">{STATUS_ICON[m.status] || '⚫'} {m.status}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Quest Timer */}
-      <div className="sv-card" style={s.timerCard}>
-        <p className="sv-section-label" style={{ textAlign: 'center' }}>
-          {room.current_subject ? `Quest — ${room.current_subject}` : 'Quest'}
-        </p>
-        <div style={{ ...s.timerDisplay, color: isRunning ? '#f0abfc' : 'rgba(255,255,255,0.2)' }}>
-          {formatTime(elapsed)}
-        </div>
-        <p style={s.roomStatus}>{isRunning ? 'Studying together' : 'Waiting to start...'}</p>
-
-        {isHost ? (
-          isRunning ? (
-            <button className="sv-btn-primary" style={s.fullBtn} onClick={endQuest}>⏹ End Quest</button>
-          ) : (
-            <div style={s.startRow}>
-              <input
-                type="text"
-                placeholder="Subject (e.g. Maths)"
-                value={subjectInput}
-                onChange={e => setSubjectInput(e.target.value)}
-              />
-              <button className="sv-btn-primary" onClick={startQuest}>⚔️ Begin Quest</button>
-            </div>
-          )
-        ) : (
-          <p style={s.hintText}>Only the Guild Leader can start or end the quest.</p>
-        )}
-      </div>
-
-      {/* My Status */}
-      <div className="sv-card">
-        <p className="sv-section-label">My Status</p>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="sv-btn-ghost" onClick={() => setMyStatus('studying')}>🟢 Studying</button>
-          <button className="sv-btn-ghost" onClick={() => setMyStatus('break')}>🟡 Break</button>
-        </div>
-      </div>
-
-      <button className="sv-btn-danger" onClick={leaveRoom}>🚪 Leave Guild</button>
-    </div>
-  )
-}
-
-const s = {
-  header: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-    flexWrap: 'wrap', gap: '16px', marginBottom: '24px',
-  },
-  welcomeLabel: { fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px', fontWeight: 500 },
-  pageTitle: { fontSize: '26px', fontWeight: 700, color: '#f1e8ff', lineHeight: 1.2 },
-  accent: {
-    background: 'linear-gradient(90deg, #f0abfc, #a855f7)',
-    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-  },
-  codeBadge: {
-    textAlign: 'center', background: 'rgba(168, 85, 247, 0.1)',
-    border: '1px solid rgba(168, 85, 247, 0.25)', borderRadius: '12px',
-    padding: '10px 18px', minWidth: '120px',
-  },
-  codeLabel: { fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'block' },
-  codeValue: { fontSize: '18px', fontWeight: 700, color: '#f0abfc', letterSpacing: '2px' },
-  memberList: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  memberRow: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px',
-  },
-  memberLeft: { display: 'flex', alignItems: 'center', gap: '10px' },
-  memberName: { fontWeight: 600, fontSize: '14px', color: '#f1e8ff' },
-  timerCard: { textAlign: 'center', padding: '32px 24px' },
-  timerDisplay: {
-    fontSize: '52px', fontWeight: 700, letterSpacing: '5px',
-    textShadow: '0 0 40px rgba(240, 171, 252, 0.4)', padding: '16px 0',
-    fontVariantNumeric: 'tabular-nums', transition: 'color 0.3s',
-  },
-  roomStatus: { fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginBottom: '18px' },
-  startRow: { display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' },
-  fullBtn: { width: '100%' },
-  hintText: { fontSize: '13px', color: 'rgba(255,255,255,0.25)' },
-}
+const s={header:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:16,marginBottom:24},label:{fontSize:13,color:'var(--app-muted)',marginBottom:5,fontWeight:600},title:{fontSize:28,fontWeight:700,color:'var(--app-text)',lineHeight:1.2},subtitle:{marginTop:7,fontSize:13,color:'var(--app-muted)'},code:{textAlign:'center',background:'var(--app-accent-soft)',border:'1px solid var(--app-border)',borderRadius:12,padding:'10px 18px',minWidth:120},codeLabel:{fontSize:11,color:'var(--app-muted)',display:'block'},codeValue:{fontSize:18,fontWeight:700,color:'var(--app-accent)',letterSpacing:2},list:{display:'flex',flexDirection:'column',gap:8,marginTop:12},member:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 14px',background:'var(--app-accent-soft)',borderRadius:10},memberLeft:{display:'flex',alignItems:'center',gap:10,fontWeight:600,color:'var(--app-text)'},timer:{textAlign:'center',padding:'32px 24px'},clock:{fontSize:52,fontWeight:700,letterSpacing:4,padding:'16px 0',fontVariantNumeric:'tabular-nums'},status:{fontSize:13,color:'var(--app-muted)',marginBottom:18},start:{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'},full:{width:'100%'},hint:{fontSize:13,color:'var(--app-muted)'},leave:{marginTop:4,background:'transparent',border:'1px solid rgba(200,70,70,.35)',color:'#b94b4b',borderRadius:10,padding:'10px 16px'}}
