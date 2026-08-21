@@ -129,7 +129,7 @@ export default function Rooms() {
 
   return (
     <div className="sv-page">
-      <div className="sv-container" style={{ paddingTop: '28px' }}>
+      <div className="sv-container" style={{ paddingTop: '34px' }}>
         {view === 'room' && activeRoomId ? (
           <RoomView roomId={activeRoomId} userId={userId} onLeft={backHome} />
         ) : (
@@ -146,14 +146,14 @@ export default function Rooms() {
             {view === 'home' && (
               <div style={styles.grid}>
                 <button className="sv-card sv-room-choice" onClick={() => { setView('create'); setError('') }}>
-                  <span style={styles.icon}>🏰</span>
-                  <strong style={styles.choiceTitle}>Create a Private Room</strong>
-                  <span style={styles.choiceText}>Create a room and receive a random 6-character invite code.</span>
+                  <span className="sv-room-choice-icon">🏰</span>
+                  <strong className="sv-room-choice-title">Create a Private Room</strong>
+                  <span className="sv-room-choice-text">Create a room and receive a random 6-character invite code.</span>
                 </button>
                 <button className="sv-card sv-room-choice" onClick={() => { setView('join'); setError('') }}>
-                  <span style={styles.icon}>🔐</span>
-                  <strong style={styles.choiceTitle}>Join with Code</strong>
-                  <span style={styles.choiceText}>Enter the exact code given to you by the room host.</span>
+                  <span className="sv-room-choice-icon">🔐</span>
+                  <strong className="sv-room-choice-title">Join with Code</strong>
+                  <span className="sv-room-choice-text">Enter the exact code given to you by the room host.</span>
                 </button>
               </div>
             )}
@@ -178,15 +178,7 @@ export default function Rooms() {
                 <p className="sv-section-label">Join Private Room</p>
                 <p style={styles.helper}>There is no public room browser or quick-join button. You need the 6-character invite code.</p>
                 <div style={styles.form}>
-                  <input
-                    value={joinCode}
-                    onChange={e => setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
-                    placeholder="ENTER CODE"
-                    maxLength={6}
-                    autoComplete="off"
-                    style={styles.code}
-                    onKeyDown={e => e.key === 'Enter' && handleJoin()}
-                  />
+                  <input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="ENTER CODE" maxLength={6} autoComplete="off" style={styles.code} onKeyDown={e => e.key === 'Enter' && handleJoin()} />
                   {error && <p style={styles.error}>{error}</p>}
                   <button className="sv-btn-primary" onClick={handleJoin} disabled={joining || joinCode.length !== 6}>{joining ? 'Checking code...' : '🔐 Join with Code'}</button>
                 </div>
@@ -200,15 +192,12 @@ export default function Rooms() {
 }
 
 const styles = {
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 28 },
-  label: { fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 4, fontWeight: 500 },
-  title: { fontSize: 30, fontWeight: 700, color: '#f1e8ff', lineHeight: 1.2 },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 34 },
+  label: { fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 6, fontWeight: 600, letterSpacing: '.2px' },
+  title: { fontSize: 34, fontWeight: 750, color: '#f1e8ff', lineHeight: 1.15, letterSpacing: '-.7px' },
   accent: { background: 'linear-gradient(90deg, #f0abfc, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' },
-  subtitle: { marginTop: 10, color: 'rgba(255,255,255,0.5)', maxWidth: 620, lineHeight: 1.5 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 18, maxWidth: 760 },
-  icon: { fontSize: 36, marginBottom: 14 },
-  choiceTitle: { fontSize: 18, color: '#f1e8ff' },
-  choiceText: { fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, marginTop: 8 },
+  subtitle: { marginTop: 11, color: 'rgba(255,255,255,0.52)', maxWidth: 650, lineHeight: 1.6, fontSize: 14 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 20, maxWidth: 900 },
   helper: { fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, margin: '8px 0 18px' },
   form: { display: 'flex', flexDirection: 'column', gap: 12 },
   code: { textTransform: 'uppercase', letterSpacing: 6, textAlign: 'center', fontWeight: 700 },
