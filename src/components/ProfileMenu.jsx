@@ -23,18 +23,22 @@ export default function ProfileMenu() {
 
   if (!user) return null
 
-  const name = user.user_metadata?.display_name || user.email?.split('@')[0] || 'Scholar'
-  const avatar = user.user_metadata?.avatar_url
+  const metadata = user.user_metadata || {}
+  const name = metadata.display_name || user.email?.split('@')[0] || 'StudyVerse member'
+  const username = metadata.username ? `@${metadata.username}` : 'StudyVerse member'
+  const avatar = metadata.avatar_url
+  const emoji = metadata.emoji_avatar || '👤'
+  const status = metadata.status || 'Available'
 
   return (
     <div className="sv-profile" ref={ref}>
-      <button className="sv-profile-trigger" onClick={() => setOpen(value => !value)} aria-expanded={open}>
+      <button className="sv-profile-trigger" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label="Open profile menu">
         <span className="sv-avatar">
-          {avatar ? <img src={avatar} alt="Profile" /> : (user.user_metadata?.emoji_avatar || '👤')}
+          {avatar ? <img src={avatar} alt="Profile" /> : emoji}
         </span>
         <span className="sv-profile-text">
           <strong>{name}</strong>
-          <small>StudyVerse member</small>
+          <small>{username}</small>
         </span>
         <span className="sv-profile-chevron">⌄</span>
       </button>
@@ -42,8 +46,14 @@ export default function ProfileMenu() {
       {open && (
         <div className="sv-profile-menu">
           <div className="sv-profile-menu-header">
-            <span className="sv-avatar large">{user.user_metadata?.emoji_avatar || '👤'}</span>
-            <div><strong>{name}</strong><small>{user.email}</small></div>
+            <span className="sv-avatar large">
+              {avatar ? <img src={avatar} alt="Profile" /> : emoji}
+            </span>
+            <div>
+              <strong>{name}</strong>
+              <small>{username}</small>
+              <span className="sv-profile-status">● {status}</span>
+            </div>
           </div>
           <button onClick={() => { setOpen(false); navigate('/settings?section=profile') }}>✏️ Edit Profile</button>
           <button onClick={() => { setOpen(false); navigate('/settings?section=appearance') }}>🎨 Appearance</button>
