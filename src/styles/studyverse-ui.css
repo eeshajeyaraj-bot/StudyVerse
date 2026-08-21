@@ -1,0 +1,40 @@
+/* StudyVerse unified visual language: modern study/productivity, never game/RPG. */
+.sv-page{color:var(--app-text)!important}
+.sv-page h1,.sv-page h2,.sv-page h3,.sv-page h4,.sv-page p,.sv-page label,.sv-page span,.sv-page strong,.sv-page small{color:var(--app-text)}
+.sv-page .sv-eyebrow,.sv-page .sv-section-label,.sv-page-subtitle{color:var(--app-muted)!important}
+.sv-page h1{font-weight:700;letter-spacing:-.03em}
+.sv-page h1 .sv-gradient-text{color:var(--app-accent)!important;background:none!important;-webkit-text-fill-color:var(--app-accent)!important}
+.sv-page input:not([type="checkbox"]):not([type="radio"]),.sv-page select,.sv-page textarea{background:var(--app-surface)!important;color:var(--app-text)!important;border:1px solid var(--app-border)!important;border-radius:10px!important}
+.sv-page input::placeholder,.sv-page textarea::placeholder{color:var(--app-placeholder)!important}
+.sv-page button,.sv-page a.sv-action-card,.sv-page .sv-room-choice{font-family:inherit}
+.sv-page button:not(.sv-sidebar-link):not(.sv-sidebar-collapse):not(.sv-profile-trigger):not(.sv-profile-menu button):not(.sv-onboarding-choice){background:var(--app-surface-soft)!important;color:var(--app-text)!important;border:1px solid var(--app-border)!important}
+.sv-page button:hover:not(:disabled){border-color:var(--app-accent)!important}
+.sv-page .sv-btn-primary,.sv-page .sv-primary-button{background:var(--app-accent)!important;color:#fff!important;border-color:var(--app-accent)!important}
+.sv-page .sv-card{background:var(--app-surface)!important;border-color:var(--app-border)!important;box-shadow:var(--app-shadow)!important}
+.sv-page .sv-list-row{border-bottom-color:var(--app-border)!important}
+.sv-page .sv-badge{color:var(--app-accent)!important;background:var(--app-accent-soft)!important;border-color:var(--app-border)!important}
+.sv-page .sv-empty{color:var(--app-muted)!important}
+.sv-page .sv-action-card strong,.sv-page .sv-action-card small,.sv-page .sv-room-choice-title,.sv-page .sv-room-choice-text{color:var(--app-text)!important}
+.sv-page .sv-room-choice-text,.sv-page .sv-action-card small{color:var(--app-muted)!important}
+.sv-page .sv-filter-button{color:var(--app-muted)!important;background:var(--app-surface)!important}
+.sv-page .sv-filter-button.active{color:var(--app-text)!important;background:var(--app-accent-soft)!important;border-color:var(--app-accent)!important}
+.sv-chart-tooltip{display:flex;flex-direction:column;gap:5px;padding:10px 12px;background:var(--app-surface)!important;color:var(--app-text)!important;border:1px solid var(--app-border);border-radius:10px;box-shadow:var(--app-shadow)}
+.sv-chart-tooltip span{color:var(--app-muted)!important;font-size:12px}
+.sv-analytics-breakdown{display:flex;flex-direction:column;gap:12px}
+.sv-analytics-breakdown-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--app-border)}
+.sv-analytics-breakdown-row>div{display:flex;align-items:center;gap:10px}
+.sv-analytics-breakdown-row>span{color:var(--app-muted)!important;font-size:13px}
+.sv-breakdown-dot{width:9px;height:9px;border-radius:50%;background:var(--app-accent);display:inline-block}
+.sv-analytics-header{align-items:flex-start}
+.sv-filter-row{display:flex;gap:8px;flex-wrap:wrap}
+.sv-analytics-stat-icon{font-size:22px;display:block;margin-bottom:8px}
+.sv-page .sv-profile-menu,.sv-page .sv-profile-trigger{color:var(--app-text)!important}
+
+/* Remove legacy game terminology from shared visual presentation. */
+.sv-room-choice-icon{font-size:28px;display:block;margin-bottom:8px}
+
+@media(max-width:760px){
+  .sv-filter-row{width:100%}
+  .sv-filter-button{flex:1}
+  .sv-analytics-header{gap:16px}
+}
