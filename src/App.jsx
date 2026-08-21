@@ -6,6 +6,7 @@ import Timer from './pages/Timer'
 import Tasks from './pages/Tasks'
 import Analytics from './pages/Analytics'
 import Rooms from './pages/Rooms'
+import Placeholder from './pages/Placeholder'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import ForgotPassword from './pages/ForgotPassword'
@@ -45,6 +46,13 @@ function App() {
         <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
         <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
         <Route path="/rooms" element={<ProtectedRoute><Rooms /></ProtectedRoute>} />
+
+        <Route path="/friends" element={<ProtectedRoute><Placeholder icon="👥" title="Friends" description="Connect with study friends, manage requests, and chat with your study circle." /></ProtectedRoute>} />
+        <Route path="/calendar" element={<ProtectedRoute><Placeholder icon="📅" title="Calendar" description="Your tasks, study sessions, exams, deadlines, and room events will live here." /></ProtectedRoute>} />
+        <Route path="/resources" element={<ProtectedRoute><Placeholder icon="📖" title="Resources" description="Keep your study resources, notes, and useful links organized here." /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><Placeholder icon="⚙️" title="Settings" description="Profile, appearance, notifications, privacy, and StudyVerse preferences will be managed here." /></ProtectedRoute>} />
+        <Route path="/support" element={<ProtectedRoute><Placeholder icon="💬" title="Support" description="Get help with StudyVerse and find answers when you need them." /></ProtectedRoute>} />
+
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
