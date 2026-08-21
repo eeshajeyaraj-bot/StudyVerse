@@ -1,6 +1,6 @@
 /* StudyVerse unified visual language: modern study/productivity, never game/RPG. */
 .sv-page{color:var(--app-text)!important}
-.sv-page h1,.sv-page h2,.sv-page h3,.sv-page h4,.sv-page p,.sv-page label,.sv-page span,.sv-page strong,.sv-page small{color:var(--app-text)}
+.sv-page h1,.sv-page h2,.sv-page h3,.sv-page h4,.sv-page p,.sv-page label,.sv-page span,.sv-page strong,.sv-page small{color:var(--app-text)!important}
 .sv-page .sv-eyebrow,.sv-page .sv-section-label,.sv-page-subtitle{color:var(--app-muted)!important}
 .sv-page h1{font-weight:700;letter-spacing:-.03em}
 .sv-page h1 .sv-gradient-text{color:var(--app-accent)!important;background:none!important;-webkit-text-fill-color:var(--app-accent)!important}
@@ -29,12 +29,5 @@
 .sv-filter-row{display:flex;gap:8px;flex-wrap:wrap}
 .sv-analytics-stat-icon{font-size:22px;display:block;margin-bottom:8px}
 .sv-page .sv-profile-menu,.sv-page .sv-profile-trigger{color:var(--app-text)!important}
-
-/* Remove legacy game terminology from shared visual presentation. */
 .sv-room-choice-icon{font-size:28px;display:block;margin-bottom:8px}
-
-@media(max-width:760px){
-  .sv-filter-row{width:100%}
-  .sv-filter-button{flex:1}
-  .sv-analytics-header{gap:16px}
-}
+@media(max-width:760px){.sv-filter-row{width:100%}.sv-filter-button{flex:1}.sv-analytics-header{gap:16px}}
