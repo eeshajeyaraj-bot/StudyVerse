@@ -60,12 +60,42 @@ export default function Friends() {
   async function sendRequest(targetId) {
     const { error } = await supabase.from('friendships').insert({ requester_id: userId, recipient_id: targetId })
     if (error) setNotice(error.code === '23505' ? 'A request already exists.' : error.message)
-    else { setNotice('Friend request sent.'); setSearch(''); setResults([]) }
+    else {
+      const senderName = profile?.display_name || user.email?.split('@')[0] || 'A StudyVerse member'
+      const { error: notificationError } = await supabase.from('notifications').insert({
+        user_id: targetId,
+        type: 'friend_request',
+        title: 'New friend request',
+        message: `${senderName} sent you a friend request.`,
+        link: '/friends',
+        actor_id: userId,
+        metadata: { requester_id: userId },
+      })
+      if (notificationError) console.error('Friend request notification failed:', notificationError.message)
+      setNotice('Friend request sent.'); setSearch(''); setResults([])
+    }
   }
 
   async function respond(id, status) {
+    const { data: request } = await supabase.from('friendships').select('id,requester_id,recipient_id').eq('id', id).eq('recipient_id', userId).maybeSingle()
     const { error } = await supabase.from('friendships').update({ status }).eq('id', id).eq('recipient_id', userId)
-    if (error) setNotice(error.message); else { setNotice(status === 'accepted' ? 'Friend added.' : 'Request declined.'); await loadSocial() }
+    if (error) setNotice(error.message)
+    else {
+      if (status === 'accepted' && request?.requester_id) {
+        const accepterName = profile?.display_name || user.email?.split('@')[0] || 'A StudyVerse member'
+        const { error: notificationError } = await supabase.from('notifications').insert({
+          user_id: request.requester_id,
+          type: 'friend_request',
+          title: 'Friend request accepted',
+          message: `${accepterName} accepted your friend request.`,
+          link: '/friends',
+          actor_id: userId,
+          metadata: { friendship_id: id },
+        })
+        if (notificationError) console.error('Friend accepted notification failed:', notificationError.message)
+      }
+      setNotice(status === 'accepted' ? 'Friend added.' : 'Request declined.'); await loadSocial()
+    }
   }
 
   async function saveNickname(row) {
@@ -96,7 +126,21 @@ export default function Friends() {
     const body = message.trim()
     if (!body || !selected || !userId) return
     const { error } = await supabase.from('direct_messages').insert({ sender_id: userId, recipient_id: selected.id, body })
-    if (error) setNotice(error.message); else setMessage('')
+    if (error) setNotice(error.message)
+    else {
+      const senderName = profile?.display_name || user.email?.split('@')[0] || 'A StudyVerse member'
+      const { error: notificationError } = await supabase.from('notifications').insert({
+        user_id: selected.id,
+        type: 'message',
+        title: `Message from ${senderName}`,
+        message: body.slice(0, 180),
+        link: '/friends',
+        actor_id: userId,
+        metadata: { sender_id: userId },
+      })
+      if (notificationError) console.error('Direct message notification failed:', notificationError.message)
+      setMessage('')
+    }
   }
 
   if (loading) return <div className="sv-page sv-container"><div className="sv-card" style={{padding:32}}>Loading your study circle…</div></div>
