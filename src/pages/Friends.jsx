@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
-function initials(profile) { return (profile?.display_name || profile?.username || 'U').trim().slice(0, 1).toUpperCase() }
+function profileName(profile) { return profile?.display_name || profile?.name || 'StudyVerse member' }
+function profileUsername(profile) { return profile?.name || 'student' }
+function profileStatus(profile) { return profile?.status || 'Available' }
+function initials(profile) { return profileName(profile).trim().slice(0, 1).toUpperCase() }
 function friendProfile(row, userId) { return row.requester_id === userId ? row.recipient : row.requester }
+
+const profileFields = 'id,name,display_name,avatar_url,avatar_emoji,bio'
 
 export default function Friends() {
   const { user } = useAuth()
@@ -25,12 +30,14 @@ export default function Friends() {
   async function loadSocial() {
     if (!userId) return
     setLoading(true)
-    const [{ data: me }, { data: rows }, { data: pending }] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-      supabase.from('friendships').select('id,requester_id,recipient_id,status,nickname,created_at,requester:profiles!friendships_requester_id_fkey(id,display_name,username,bio,study_goal,profile_picture_url,emoji_avatar,status),recipient:profiles!friendships_recipient_id_fkey(id,display_name,username,bio,study_goal,profile_picture_url,emoji_avatar,status)').or(`requester_id.eq.${userId},recipient_id.eq.${userId}`).order('updated_at', { ascending: false }),
-      supabase.from('friendships').select('id,requester_id,status,created_at,requester:profiles!friendships_requester_id_fkey(id,display_name,username,bio,study_goal,profile_picture_url,emoji_avatar,status)').eq('recipient_id', userId).eq('status', 'pending').order('created_at', { ascending: false }),
+    const [{ data: me, error: meError }, { data: rows, error: rowsError }, { data: pending, error: pendingError }] = await Promise.all([
+      supabase.from('profiles').select(profileFields).eq('id', userId).maybeSingle(),
+      supabase.from('friendships').select(`id,requester_id,recipient_id,status,nickname,created_at,requester:profiles!friendships_requester_id_fkey(${profileFields}),recipient:profiles!friendships_recipient_id_fkey(${profileFields})`).or(`requester_id.eq.${userId},recipient_id.eq.${userId}`).order('created_at', { ascending: false }),
+      supabase.from('friendships').select(`id,requester_id,status,created_at,requester:profiles!friendships_requester_id_fkey(${profileFields})`).eq('recipient_id', userId).eq('status', 'pending').order('created_at', { ascending: false }),
     ])
     if (me) setProfile(me)
+    const socialError = meError || rowsError || pendingError
+    if (socialError) setNotice(`Friends could not be loaded: ${socialError.message}`)
     setFriends((rows || []).filter(r => r.status === 'accepted'))
     setRequests(pending || [])
     setLoading(false)
@@ -51,18 +58,17 @@ export default function Friends() {
     const q = search.trim().replace(/[%_]/g, '')
     if (!q || q.length < 2 || !userId) { setResults([]); return }
     const timer = setTimeout(async () => {
-      const fields = 'id,display_name,username,bio,study_goal,profile_picture_url,emoji_avatar,status'
-      const [usernameResult, nameResult] = await Promise.all([
-        supabase.from('profiles').select(fields).neq('id', userId).ilike('username', `%${q}%`).limit(12),
-        supabase.from('profiles').select(fields).neq('id', userId).ilike('display_name', `%${q}%`).limit(12),
+      const [displayResult, nameResult] = await Promise.all([
+        supabase.from('profiles').select(profileFields).neq('id', userId).ilike('display_name', `%${q}%`).limit(12),
+        supabase.from('profiles').select(profileFields).neq('id', userId).ilike('name', `%${q}%`).limit(12),
       ])
-      const searchError = usernameResult.error || nameResult.error
+      const searchError = displayResult.error || nameResult.error
       if (searchError) {
         setResults([])
         setNotice(`Friend search failed: ${searchError.message}`)
         return
       }
-      const merged = [...(usernameResult.data || []), ...(nameResult.data || [])]
+      const merged = [...(displayResult.data || []), ...(nameResult.data || [])]
       const unique = Array.from(new Map(merged.map(person => [person.id, person])).values())
       setResults(unique.slice(0, 12))
     }, 250)
@@ -73,7 +79,7 @@ export default function Friends() {
     const { error } = await supabase.from('friendships').insert({ requester_id: userId, recipient_id: targetId })
     if (error) setNotice(error.code === '23505' ? 'A request already exists.' : error.message)
     else {
-      const senderName = profile?.display_name || user.email?.split('@')[0] || 'A StudyVerse member'
+      const senderName = profileName(profile) || user.email?.split('@')[0] || 'A StudyVerse member'
       const { error: notificationError } = await supabase.from('notifications').insert({
         user_id: targetId,
         type: 'friend_request',
@@ -94,7 +100,7 @@ export default function Friends() {
     if (error) setNotice(error.message)
     else {
       if (status === 'accepted' && request?.requester_id) {
-        const accepterName = profile?.display_name || user.email?.split('@')[0] || 'A StudyVerse member'
+        const accepterName = profileName(profile) || user.email?.split('@')[0] || 'A StudyVerse member'
         const { error: notificationError } = await supabase.from('notifications').insert({
           user_id: request.requester_id,
           type: 'friend_request',
@@ -122,7 +128,8 @@ export default function Friends() {
     setSelected({ ...other, friendshipId: row.id, nickname: row.nickname || '' })
     setNickname(row.nickname || '')
     const { data, error } = await supabase.from('direct_messages').select('*').or(`and(sender_id.eq.${userId},recipient_id.eq.${other.id}),and(sender_id.eq.${other.id},recipient_id.eq.${userId})`).order('created_at', { ascending: true }).limit(100)
-    if (!error) setMessages(data || [])
+    if (error) setNotice(`Chat could not be loaded: ${error.message}`)
+    else setMessages(data || [])
   }
 
   useEffect(() => {
@@ -140,7 +147,7 @@ export default function Friends() {
     const { error } = await supabase.from('direct_messages').insert({ sender_id: userId, recipient_id: selected.id, body })
     if (error) setNotice(error.message)
     else {
-      const senderName = profile?.display_name || user.email?.split('@')[0] || 'A StudyVerse member'
+      const senderName = profileName(profile) || user.email?.split('@')[0] || 'A StudyVerse member'
       const { error: notificationError } = await supabase.from('notifications').insert({
         user_id: selected.id,
         type: 'message',
@@ -158,19 +165,19 @@ export default function Friends() {
   if (loading) return <div className="sv-page sv-container"><div className="sv-card" style={{padding:32}}>Loading your study circle…</div></div>
 
   return <div className="sv-page sv-container sv-friends-page">
-    <div className="sv-page-header"><div><span className="sv-eyebrow">STUDY TOGETHER</span><h1>Friends</h1><p className="sv-page-subtitle">Build your study circle, keep your connections close, and chat while you learn.</p></div><div className="sv-profile-mini"><span>{profile?.emoji_avatar || '👤'}</span><div><strong>{profile?.display_name || 'StudyVerse member'}</strong><small>@{profile?.username || 'student'}</small></div></div></div>
+    <div className="sv-page-header"><div><span className="sv-eyebrow">STUDY TOGETHER</span><h1>Friends</h1><p className="sv-page-subtitle">Build your study circle, keep your connections close, and chat while you learn.</p></div><div className="sv-profile-mini"><span>{profile?.avatar_emoji || '👤'}</span><div><strong>{profileName(profile)}</strong><small>@{profileUsername(profile)}</small></div></div></div>
 
     {notice && <button className="sv-social-notice" onClick={()=>setNotice('')}>{notice} ×</button>}
 
-    <section className="sv-social-search sv-card"><div><span className="sv-section-label">FIND STUDY PARTNERS</span><h2>Search by name or username</h2></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search e.g. eesha_studies" aria-label="Search users"/>{search.trim().length >= 2 && !notice && results.length===0 && <div style={{paddingTop:12,color:'var(--app-muted)',fontSize:12}}>No matching StudyVerse user found. Try their exact username.</div>}{results.length>0&&<div className="sv-search-results">{results.map(person=>{const existing=acceptedIds.has(person.id);return <div className="sv-person-row" key={person.id}><Avatar person={person}/><div className="sv-person-info"><strong>{person.display_name}</strong><small>@{person.username || 'student'} · {person.status}</small></div><button className="sv-primary-button" disabled={existing} onClick={()=>sendRequest(person.id)}>{existing?'Friends':'Add friend'}</button></div>})}</div>}</section>
+    <section className="sv-social-search sv-card"><div><span className="sv-section-label">FIND STUDY PARTNERS</span><h2>Search by name or username</h2></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name or username" aria-label="Search users"/>{search.trim().length >= 2 && !notice && results.length===0 && <div style={{paddingTop:12,color:'var(--app-muted)',fontSize:12}}>No matching StudyVerse user found. Try their display name or account name.</div>}{results.length>0&&<div className="sv-search-results">{results.map(person=>{const existing=acceptedIds.has(person.id);return <div className="sv-person-row" key={person.id}><Avatar person={person}/><div className="sv-person-info"><strong>{profileName(person)}</strong><small>@{profileUsername(person)} · {profileStatus(person)}</small></div><button className="sv-primary-button" disabled={existing} onClick={()=>sendRequest(person.id)}>{existing?'Friends':'Add friend'}</button></div>})}</div>}</section>
 
-    {requests.length>0&&<section className="sv-card"><div className="sv-section-head"><div><span className="sv-section-label">PENDING</span><h2>Friend requests <span className="sv-count">{requests.length}</span></h2></div></div><div className="sv-people-list">{requests.map(req=><div className="sv-person-row" key={req.id}><Avatar person={req.requester}/><div className="sv-person-info"><strong>{req.requester?.display_name}</strong><small>@{req.requester?.username || 'student'} · {req.requester?.status || 'Available'}</small></div><div className="sv-request-actions"><button className="sv-primary-button" onClick={()=>respond(req.id,'accepted')}>Accept</button><button onClick={()=>respond(req.id,'declined')}>Decline</button></div></div>)}</div></section>}
+    {requests.length>0&&<section className="sv-card"><div className="sv-section-head"><div><span className="sv-section-label">PENDING</span><h2>Friend requests <span className="sv-count">{requests.length}</span></h2></div></div><div className="sv-people-list">{requests.map(req=><div className="sv-person-row" key={req.id}><Avatar person={req.requester}/><div className="sv-person-info"><strong>{profileName(req.requester)}</strong><small>@{profileUsername(req.requester)} · {profileStatus(req.requester)}</small></div><div className="sv-request-actions"><button className="sv-primary-button" onClick={()=>respond(req.id,'accepted')}>Accept</button><button onClick={()=>respond(req.id,'declined')}>Decline</button></div></div>)}</div></section>}
 
-    <section className="sv-friends-layout"><div className="sv-card"><div className="sv-section-head"><div><span className="sv-section-label">YOUR STUDY CIRCLE</span><h2>{friends.length} friend{friends.length===1?'':'s'}</h2></div></div>{friends.length===0?<div className="sv-empty-social"><span>👥</span><strong>Your study circle is empty</strong><p>Search for a classmate or friend above to start building it.</p></div>:<div className="sv-people-list">{friends.map(row=>{const person=friendProfile(row,userId);return <button className={`sv-person-row sv-friend-button ${selected?.id===person?.id?'selected':''}`} key={row.id} onClick={()=>openChat(row)}><Avatar person={person}/><div className="sv-person-info"><strong>{row.nickname || person?.display_name}</strong><small>@{person?.username || 'student'} · <i className={`sv-status-dot ${person?.status==='Studying'?'online':''}`}></i>{person?.status || 'Available'}</small></div><span className="sv-chat-arrow">Chat →</span></button>})}</div>}</div>
+    <section className="sv-friends-layout"><div className="sv-card"><div className="sv-section-head"><div><span className="sv-section-label">YOUR STUDY CIRCLE</span><h2>{friends.length} friend{friends.length===1?'':'s'}</h2></div></div>{friends.length===0?<div className="sv-empty-social"><span>👥</span><strong>Your study circle is empty</strong><p>Search for a classmate or friend above to start building it.</p></div>:<div className="sv-people-list">{friends.map(row=>{const person=friendProfile(row,userId);return <button className={`sv-person-row sv-friend-button ${selected?.id===person?.id?'selected':''}`} key={row.id} onClick={()=>openChat(row)}><Avatar person={person}/><div className="sv-person-info"><strong>{row.nickname || profileName(person)}</strong><small>@{profileUsername(person)} · <i className={`sv-status-dot ${profileStatus(person)==='Studying'?'online':''}`}></i>{profileStatus(person)}</small></div><span className="sv-chat-arrow">Chat →</span></button>})}</div>}</div>
 
-    {selected?<aside className="sv-chat-panel sv-card"><div className="sv-chat-header"><Avatar person={selected}/><div><strong>{selected.nickname || selected.display_name}</strong><small>@{selected.username || 'student'} · {selected.status || 'Available'}</small></div><button onClick={()=>setSelected(null)} aria-label="Close chat">×</button></div><div className="sv-nickname"><label>Nickname for this friend<input value={nickname} onChange={e=>setNickname(e.target.value)} onBlur={()=>saveNickname(selected)} placeholder="e.g. Study Buddy"/></label></div><div className="sv-messages">{messages.length===0?<div className="sv-chat-empty">No messages yet.<br/>Say hello and start studying together.</div>:messages.map(m=><div className={`sv-message ${m.sender_id===userId?'mine':''}`} key={m.id}><span>{m.body}</span><small>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</small></div>)}</div><div className="sv-message-compose"><input value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage()} placeholder="Write a message…"/><button className="sv-primary-button" onClick={sendMessage}>Send</button></div></aside>:<aside className="sv-social-side sv-card"><span>💬</span><h2>Private study chat</h2><p>Select a friend to open a realtime conversation. You can also give each friend your own nickname.</p></aside>}
+    {selected?<aside className="sv-chat-panel sv-card"><div className="sv-chat-header"><Avatar person={selected}/><div><strong>{selected.nickname || profileName(selected)}</strong><small>@{profileUsername(selected)} · {profileStatus(selected)}</small></div><button onClick={()=>setSelected(null)} aria-label="Close chat">×</button></div><div className="sv-nickname"><label>Nickname for this friend<input value={nickname} onChange={e=>setNickname(e.target.value)} onBlur={()=>saveNickname(selected)} placeholder="e.g. Study Buddy"/></label></div><div className="sv-messages">{messages.length===0?<div className="sv-chat-empty">No messages yet.<br/>Say hello and start studying together.</div>:messages.map(m=><div className={`sv-message ${m.sender_id===userId?'mine':''}`} key={m.id}><span>{m.body}</span><small>{new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</small></div>)}</div><div className="sv-message-compose"><input value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage()} placeholder="Write a message…"/><button className="sv-primary-button" onClick={sendMessage}>Send</button></div></aside>:<aside className="sv-social-side sv-card"><span>💬</span><h2>Private study chat</h2><p>Select a friend to open a realtime conversation. You can also give each friend your own nickname.</p></aside>}
     </section>
   </div>
 }
 
-function Avatar({person}) { return person?.profile_picture_url ? <img className="sv-avatar" src={person.profile_picture_url} alt=""/> : <span className="sv-avatar sv-avatar-emoji">{person?.emoji_avatar || initials(person)}</span> }
+function Avatar({person}) { return person?.avatar_url ? <img className="sv-avatar" src={person.avatar_url} alt=""/> : <span className="sv-avatar sv-avatar-emoji">{person?.avatar_emoji || initials(person)}</span> }
