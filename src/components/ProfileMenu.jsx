@@ -57,8 +57,41 @@ export default function ProfileMenu() {
   const unreadCount = notifications.filter(x => !x.is_read).length
 
   async function logout() { await signOut(); navigate('/login') }
-  async function markRead(id) { const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id).eq('user_id', user.id); if (!error) setNotifications(prev => prev.map(x => x.id === id ? { ...x, is_read: true } : x)) }
-  async function markAllRead() { const { error } = await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false); if (!error) setNotifications(prev => prev.map(x => ({ ...x, is_read: true }))) }
+
+  async function markRead(id) {
+    // Update the UI immediately so the unread badge disappears as soon as the
+    // notification is opened. The database update keeps that state persistent.
+    setNotifications(prev => prev.map(x => x.id === id ? { ...x, is_read: true } : x))
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', id)
+      .eq('user_id', user.id)
+    if (error) {
+      setNotificationError(`Could not mark notification as read: ${error.message}`)
+      // Re-load from Supabase so the UI reflects the actual persisted state.
+      const { data } = await supabase
+        .from('notifications')
+        .select('id,type,title,message,link,actor_id,metadata,is_read,created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (data) setNotifications(data)
+    }
+  }
+
+  async function markAllRead() {
+    setNotifications(prev => prev.map(x => ({ ...x, is_read: true })))
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', user.id)
+      .eq('is_read', false)
+    if (error) {
+      setNotificationError(`Could not mark notifications as read: ${error.message}`)
+    }
+  }
+
   async function refreshProfile() { const fresh = await refreshUser(); if (fresh) setProfile(fresh.user_metadata || {}) }
 
   return <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
