@@ -6,13 +6,34 @@ import { useAuth } from '../context/AuthContext'
 
 const themes=[{id:'cozy',emoji:'🌿',name:'Cozy',description:'Warm, calm and comfortable'},{id:'focused',emoji:'💼',name:'Focused',description:'Clean and distraction-free'},{id:'dark',emoji:'🌙',name:'Dark',description:'Low-light study workspace'},{id:'light',emoji:'☀️',name:'Light',description:'Bright and minimal'},{id:'custom',emoji:'🎨',name:'Custom',description:'A soft personalized palette'}]
 const statuses=['Studying','Busy','Available','Away','Invisible']
+
 export default function Settings(){
  const {user,refreshUser}=useAuth();const [params,setParams]=useSearchParams();const [section,setSection]=useState(params.get('section')||'profile');const [form,setForm]=useState({display_name:'',username:'',bio:'',study_goal:'',emoji_avatar:'👤',status:'Available',age_group:''});const [notifications,setNotifications]=useState({messages:true,friend_requests:true,room_invites:true,assignments:true,deadlines:true,reminders:true,weekly_reports:true,achievements:true});const [privacy,setPrivacy]=useState({show_online:true,allow_friend_requests:true,show_study_status:true});const [theme,setTheme]=useState('dark');const [avatarFile,setAvatarFile]=useState(null);const [rooms,setRooms]=useState([]);const [roomsLoading,setRoomsLoading]=useState(false);const [saving,setSaving]=useState(false);const [message,setMessage]=useState('');const [error,setError]=useState('')
  useEffect(()=>{if(!user)return;const m=user.user_metadata||{};setForm({display_name:m.display_name||user.email?.split('@')[0]||'',username:m.username||'',bio:m.bio||'',study_goal:m.study_goal||'',emoji_avatar:m.emoji_avatar||'👤',status:m.status||'Available',age_group:m.age_group||''});setTheme(m.appearance||m.study_experience||localStorage.getItem('studyverse-theme')||'dark');setNotifications(current=>({...current,...(m.notifications||{})}));setPrivacy(current=>({...current,...(m.privacy||{})}))},[user?.id,user?.user_metadata?.display_name,user?.user_metadata?.username,user?.user_metadata?.bio,user?.user_metadata?.study_goal,user?.user_metadata?.emoji_avatar,user?.user_metadata?.status,user?.user_metadata?.age_group])
  useEffect(()=>{if(section==='room_history'&&user)fetchRoomHistory()},[section,user?.id])
  async function fetchRoomHistory(){setRoomsLoading(true);setError('');const {data,error:fetchError}=await supabase.from('room_history').select('*').eq('host_id',user.id).order('created_at',{ascending:false});if(fetchError)setError(`Room history could not be loaded: ${fetchError.message}`);setRooms(data||[]);setRoomsLoading(false)}
  function selectSection(value){setSection(value);setParams({section:value});setMessage('');setError('')}
- async function saveProfile(event){event.preventDefault();setSaving(true);setMessage('');setError('');let avatar_url=user.user_metadata?.avatar_url||'';if(avatarFile){const ext=avatarFile.name.split('.').pop()||'jpg',path=`${user.id}/profile-${Date.now()}.${ext}`;const {error:uploadError}=await supabase.storage.from('avatars').upload(path,avatarFile,{upsert:true});if(uploadError){setError(`Profile picture could not be uploaded: ${uploadError.message}`);setSaving(false);return}const {data}=supabase.storage.from('avatars').getPublicUrl(path);avatar_url=data.publicUrl}const {error:updateError}=await supabase.auth.updateUser({data:{...form,avatar_url}});if(updateError)setError(updateError.message);else{const freshUser=await refreshUser();if(freshUser?.user_metadata){const m=freshUser.user_metadata;setForm({display_name:m.display_name||freshUser.email?.split('@')[0]||'',username:m.username||'',bio:m.bio||'',study_goal:m.study_goal||'',emoji_avatar:m.emoji_avatar||'👤',status:m.status||'Available',age_group:m.age_group||''})}setMessage('Profile saved successfully.');setAvatarFile(null)}setSaving(false)}
+ async function saveProfile(event){
+  event.preventDefault();setSaving(true);setMessage('');setError('')
+  let avatar_url=user.user_metadata?.avatar_url||''
+  if(avatarFile){const ext=avatarFile.name.split('.').pop()||'jpg',path=`${user.id}/profile-${Date.now()}.${ext}`;const {error:uploadError}=await supabase.storage.from('avatars').upload(path,avatarFile,{upsert:true});if(uploadError){setError(`Profile picture could not be uploaded: ${uploadError.message}`);setSaving(false);return}const {data}=supabase.storage.from('avatars').getPublicUrl(path);avatar_url=data.publicUrl}
+  const {error:updateError}=await supabase.auth.updateUser({data:{...form,avatar_url}})
+  if(updateError){setError(updateError.message);setSaving(false);return}
+
+  // Keep the public profile directory in sync with the editable profile.
+  // The current profiles table uses name/avatar_url/avatar_emoji/bio/display_name.
+  const {error:profileError}=await supabase.from('profiles').upsert({
+   id:user.id,
+   name:form.username || form.display_name || user.email?.split('@')[0] || 'student',
+   display_name:form.display_name || form.username || user.email?.split('@')[0] || 'StudyVerse member',
+   bio:form.bio || null,
+   avatar_emoji:form.emoji_avatar || '👤',
+   avatar_url:avatar_url || null,
+  },{onConflict:'id'})
+  if(profileError){setError(`Profile directory could not be updated: ${profileError.message}`);setSaving(false);return}
+
+  const freshUser=await refreshUser();if(freshUser?.user_metadata){const m=freshUser.user_metadata;setForm({display_name:m.display_name||freshUser.email?.split('@')[0]||'',username:m.username||'',bio:m.bio||'',study_goal:m.study_goal||'',emoji_avatar:m.emoji_avatar||'👤',status:m.status||'Available',age_group:m.age_group||''})}setMessage('Profile saved successfully.');setAvatarFile(null);setSaving(false)
+ }
  async function savePreference(key,value){const {error:updateError}=await supabase.auth.updateUser({data:{[key]:value}});if(updateError)setError(updateError.message);else{await refreshUser();setMessage('Preference saved.')}}
  async function changeTheme(id){setTheme(id);document.documentElement.dataset.theme=id;localStorage.setItem('studyverse-theme',id);const {error:updateError}=await supabase.auth.updateUser({data:{appearance:id,study_experience:id}});if(updateError)setError(updateError.message);else{await refreshUser();setMessage(`${themes.find(t=>t.id===id)?.name} appearance applied.`)}}
  return <div className="sv-page"><div className="sv-container sv-settings-page"><div className="sv-page-header"><div><p className="sv-eyebrow">Preferences</p><h1>Settings</h1><p className="sv-eyebrow" style={{marginTop:8}}>Manage your profile, appearance, notifications, privacy and room history.</p></div></div><div className="sv-settings-layout"><aside className="sv-settings-nav sv-card">{[['profile','👤','Profile'],['appearance','🎨','Appearance'],['notifications','🔔','Notifications'],['privacy','🔒','Privacy'],['room_history','🗂️','Room History'],['account','⚙️','Account']].map(([id,icon,label])=><button key={id} className={section===id?'active':''} onClick={()=>selectSection(id)}>{icon}<span>{label}</span></button>)}</aside><section className="sv-settings-content">
