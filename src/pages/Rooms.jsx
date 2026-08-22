@@ -21,16 +21,51 @@ export default function Rooms() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    async function getUser() {
+    async function getUserAndRestoreRoom() {
       const { data } = await supabase.auth.getUser()
-      if (data?.user) {
-        setUserId(data.user.id)
-        setDisplayName(data.user.user_metadata?.display_name || data.user.email?.split('@')[0] || 'Scholar')
+      const user = data?.user
+
+      if (!user) {
+        setLoading(false)
+        return
       }
+
+      const id = user.id
+      setUserId(id)
+      setDisplayName(user.user_metadata?.display_name || user.email?.split('@')[0] || 'Scholar')
+
+      // Keep the room the user is currently in when they navigate to
+      // Settings, Dashboard, Tasks, etc. and later return to Rooms.
+      const storageKey = `studyverse_active_room_${id}`
+      const savedRoomId = window.localStorage.getItem(storageKey)
+
+      if (savedRoomId) {
+        const { data: membership } = await supabase
+          .from('room_members')
+          .select('room_id, study_rooms!inner(id, is_active)')
+          .eq('room_id', savedRoomId)
+          .eq('user_id', id)
+          .eq('study_rooms.is_active', true)
+          .maybeSingle()
+
+        if (membership?.room_id) {
+          setActiveRoomId(membership.room_id)
+          setView('room')
+        } else {
+          window.localStorage.removeItem(storageKey)
+        }
+      }
+
       setLoading(false)
     }
-    getUser()
+
+    getUserAndRestoreRoom()
   }, [])
+
+  function persistActiveRoom(roomId) {
+    if (!userId || !roomId) return
+    window.localStorage.setItem(`studyverse_active_room_${userId}`, roomId)
+  }
 
   async function handleCreate() {
     if (!roomName.trim()) return setError('Give your room a name.')
@@ -74,6 +109,7 @@ export default function Rooms() {
         setError(`Room created, but history could not be saved: ${historyError.message}`)
         setCreating(false)
         setActiveRoomId(room.id)
+        persistActiveRoom(room.id)
         setView('room')
         return
       }
@@ -81,6 +117,7 @@ export default function Rooms() {
       setRoomName('')
       setCreating(false)
       setActiveRoomId(room.id)
+      persistActiveRoom(room.id)
       setView('room')
       return
     }
@@ -131,10 +168,12 @@ export default function Rooms() {
     setJoinCode('')
     setJoining(false)
     setActiveRoomId(room.id)
+    persistActiveRoom(room.id)
     setView('room')
   }
 
   function backHome() {
+    if (userId) window.localStorage.removeItem(`studyverse_active_room_${userId}`)
     setActiveRoomId(null)
     setView('home')
     setError('')
