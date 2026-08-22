@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-const AuthContext = createContext({ user: null, session: null, loading: true })
+const AuthContext = createContext({ user: null, session: null, loading: true, refreshUser: async () => null })
 
 export function useAuth() {
   return useContext(AuthContext)
@@ -12,13 +12,11 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get whatever session already exists (e.g. page refresh)
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setLoading(false)
     })
 
-    // Keep session in sync on login / logout / token refresh
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session)
@@ -29,10 +27,18 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
+  async function refreshUser() {
+    const { data, error } = await supabase.auth.getUser()
+    if (error || !data?.user) return null
+    setSession(current => current ? { ...current, user: data.user } : current)
+    return data.user
+  }
+
   const value = {
     user: session?.user ?? null,
     session,
     loading,
+    refreshUser,
     signOut: () => supabase.auth.signOut(),
   }
 
