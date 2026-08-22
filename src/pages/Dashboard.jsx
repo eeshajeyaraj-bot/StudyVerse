@@ -6,6 +6,12 @@ const DAY = 86400000
 const pad = n => String(n).padStart(2, '0')
 const dateKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
+const dashboardCss = `
+.sv-dashboard-two-col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}.sv-dashboard-two-col .sv-card{margin-bottom:0}.sv-goal-card,.sv-rating-card{min-height:160px}.sv-goal-row{display:flex;align-items:baseline;gap:8px;margin:16px 0 9px}.sv-goal-row strong{font-size:26px}.sv-goal-row span,.sv-rating-card small{color:var(--app-muted);font-size:12px}.sv-goal-control{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:15px;color:var(--app-muted);font-size:12px}.sv-goal-control input{width:90px;min-height:36px;padding:7px 9px}.sv-rating-card{display:flex;flex-direction:column;justify-content:center;gap:8px}.sv-rating-card strong{font-size:38px;color:var(--app-accent)}.sv-rating-card small{line-height:1.5;max-width:380px}.sv-heatmap-card{overflow:hidden}.sv-heatmap-card h2{margin-top:5px;font-size:20px}.sv-heat-controls{display:flex;gap:8px;flex-wrap:wrap}.sv-heat-controls select{width:auto;min-width:115px;min-height:38px;padding:7px 34px 7px 10px}.sv-heatmap-grid{display:grid;grid-template-columns:repeat(53,minmax(8px,1fr));grid-auto-rows:12px;gap:4px;margin-top:18px;overflow-x:auto;padding-bottom:5px}.sv-heat-cell{min-width:8px;border-radius:3px;background:var(--app-border)}.sv-heat-cell.level-1{background:var(--app-accent);opacity:.28}.sv-heat-cell.level-2{background:var(--app-accent);opacity:.48}.sv-heat-cell.level-3{background:var(--app-accent);opacity:.7}.sv-heat-cell.level-4{background:var(--app-accent);opacity:1}.sv-heatmap-legend{display:flex;align-items:center;justify-content:flex-end;gap:5px;margin-top:10px;color:var(--app-muted);font-size:10px}.sv-heatmap-legend i{width:11px;height:11px;border-radius:3px;background:var(--app-border)}.sv-heatmap-legend i.level-1{background:var(--app-accent);opacity:.28}.sv-heatmap-legend i.level-2{background:var(--app-accent);opacity:.48}.sv-heatmap-legend i.level-3{background:var(--app-accent);opacity:.7}.sv-heatmap-legend i.level-4{background:var(--app-accent);opacity:1}
+@media(max-width:900px){.sv-stats-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.sv-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.sv-dashboard-two-col{grid-template-columns:1fr}.sv-heatmap-grid{grid-template-columns:repeat(53,10px)}}
+@media(max-width:600px){.sv-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.sv-action-grid{grid-template-columns:1fr}.sv-heatmap-card .sv-section-heading{align-items:flex-start}.sv-heat-controls{width:100%}.sv-heat-controls select{flex:1}.sv-goal-control{align-items:flex-start}.sv-goal-control input{width:80px}}
+`
+
 export default function Dashboard() {
   const [sessions, setSessions] = useState([])
   const [tasks, setTasks] = useState([])
@@ -104,7 +110,7 @@ export default function Dashboard() {
     ['Top Subject', topSubject, '🏆'],
   ]
 
-  return <div className="sv-page"><div className="sv-container sv-dashboard-page">
+  return <div className="sv-page"><style>{dashboardCss}</style><div className="sv-container sv-dashboard-page">
     <div className="sv-page-header"><div><p className="sv-eyebrow">Overview</p><h1>Good to see you back.</h1><p className="sv-page-subtitle">Your goals, consistency, recent sessions and tasks — all in one place.</p></div></div>
 
     <div className="sv-stats-grid">{stats.map(([label, value, icon]) => <div key={label} className="sv-card sv-stat-card"><span>{icon}</span><strong>{value}</strong><small>{label}</small></div>)}</div>
