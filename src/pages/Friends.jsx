@@ -6,7 +6,7 @@ function profileName(profile) { return profile?.display_name || profile?.name ||
 function profileUsername(profile) { return profile?.name || 'student' }
 function profileStatus(profile) { return profile?.status || 'Available' }
 function initials(profile) { return profileName(profile).trim().slice(0, 1).toUpperCase() }
-function friendProfile(row, userId) { return row.requester_id === userId ? row.recipient : row.requester }
+function friendProfile(row, userId) { return row.user_id === userId ? row.friend : row.user }
 
 const profileFields = 'id,name,display_name,avatar_url,avatar_emoji,bio'
 
@@ -32,8 +32,8 @@ export default function Friends() {
     setLoading(true)
     const [{ data: me, error: meError }, { data: rows, error: rowsError }, { data: pending, error: pendingError }] = await Promise.all([
       supabase.from('profiles').select(profileFields).eq('id', userId).maybeSingle(),
-      supabase.from('friendships').select(`id,requester_id,recipient_id,status,nickname,created_at,requester:profiles!friendships_requester_id_fkey(${profileFields}),recipient:profiles!friendships_recipient_id_fkey(${profileFields})`).or(`requester_id.eq.${userId},recipient_id.eq.${userId}`).order('created_at', { ascending: false }),
-      supabase.from('friendships').select(`id,requester_id,status,created_at,requester:profiles!friendships_requester_id_fkey(${profileFields})`).eq('recipient_id', userId).eq('status', 'pending').order('created_at', { ascending: false }),
+      supabase.from('friendships').select(`id,user_id,friend_id,status,nickname,created_at,user:profiles!friendships_user_id_fkey(${profileFields}),friend:profiles!friendships_friend_id_fkey(${profileFields})`).or(`user_id.eq.${userId},friend_id.eq.${userId}`).order('created_at', { ascending: false }),
+      supabase.from('friendships').select(`id,user_id,friend_id,status,created_at,user:profiles!friendships_user_id_fkey(${profileFields})`).eq('friend_id', userId).eq('status', 'pending').order('created_at', { ascending: false }),
     ])
     if (me) setProfile(me)
     const socialError = meError || rowsError || pendingError
@@ -48,8 +48,8 @@ export default function Friends() {
   useEffect(() => {
     if (!userId) return
     const channel = supabase.channel(`social:${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships', filter: `recipient_id=eq.${userId}` }, loadSocial)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships', filter: `requester_id=eq.${userId}` }, loadSocial)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships', filter: `friend_id=eq.${userId}` }, loadSocial)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships', filter: `user_id=eq.${userId}` }, loadSocial)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [userId])
@@ -76,7 +76,7 @@ export default function Friends() {
   }, [search, userId])
 
   async function sendRequest(targetId) {
-    const { error } = await supabase.from('friendships').insert({ requester_id: userId, recipient_id: targetId })
+    const { error } = await supabase.from('friendships').insert({ user_id: userId, friend_id: targetId, status: 'pending' })
     if (error) setNotice(error.code === '23505' ? 'A request already exists.' : error.message)
     else {
       const senderName = profileName(profile) || user.email?.split('@')[0] || 'A StudyVerse member'
@@ -95,14 +95,14 @@ export default function Friends() {
   }
 
   async function respond(id, status) {
-    const { data: request } = await supabase.from('friendships').select('id,requester_id,recipient_id').eq('id', id).eq('recipient_id', userId).maybeSingle()
-    const { error } = await supabase.from('friendships').update({ status }).eq('id', id).eq('recipient_id', userId)
+    const { data: request } = await supabase.from('friendships').select('id,user_id,friend_id').eq('id', id).eq('friend_id', userId).maybeSingle()
+    const { error } = await supabase.from('friendships').update({ status }).eq('id', id).eq('friend_id', userId)
     if (error) setNotice(error.message)
     else {
-      if (status === 'accepted' && request?.requester_id) {
+      if (status === 'accepted' && request?.user_id) {
         const accepterName = profileName(profile) || user.email?.split('@')[0] || 'A StudyVerse member'
         const { error: notificationError } = await supabase.from('notifications').insert({
-          user_id: request.requester_id,
+          user_id: request.user_id,
           type: 'friend_request',
           title: 'Friend request accepted',
           message: `${accepterName} accepted your friend request.`,
@@ -171,7 +171,7 @@ export default function Friends() {
 
     <section className="sv-social-search sv-card"><div><span className="sv-section-label">FIND STUDY PARTNERS</span><h2>Search by name or username</h2></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name or username" aria-label="Search users"/>{search.trim().length >= 2 && !notice && results.length===0 && <div style={{paddingTop:12,color:'var(--app-muted)',fontSize:12}}>No matching StudyVerse user found. Try their display name or account name.</div>}{results.length>0&&<div className="sv-search-results">{results.map(person=>{const existing=acceptedIds.has(person.id);return <div className="sv-person-row" key={person.id}><Avatar person={person}/><div className="sv-person-info"><strong>{profileName(person)}</strong><small>@{profileUsername(person)} · {profileStatus(person)}</small></div><button className="sv-primary-button" disabled={existing} onClick={()=>sendRequest(person.id)}>{existing?'Friends':'Add friend'}</button></div>})}</div>}</section>
 
-    {requests.length>0&&<section className="sv-card"><div className="sv-section-head"><div><span className="sv-section-label">PENDING</span><h2>Friend requests <span className="sv-count">{requests.length}</span></h2></div></div><div className="sv-people-list">{requests.map(req=><div className="sv-person-row" key={req.id}><Avatar person={req.requester}/><div className="sv-person-info"><strong>{profileName(req.requester)}</strong><small>@{profileUsername(req.requester)} · {profileStatus(req.requester)}</small></div><div className="sv-request-actions"><button className="sv-primary-button" onClick={()=>respond(req.id,'accepted')}>Accept</button><button onClick={()=>respond(req.id,'declined')}>Decline</button></div></div>)}</div></section>}
+    {requests.length>0&&<section className="sv-card"><div className="sv-section-head"><div><span className="sv-section-label">PENDING</span><h2>Friend requests <span className="sv-count">{requests.length}</span></h2></div></div><div className="sv-people-list">{requests.map(req=><div className="sv-person-row" key={req.id}><Avatar person={req.user}/><div className="sv-person-info"><strong>{profileName(req.user)}</strong><small>@{profileUsername(req.user)} · {profileStatus(req.user)}</small></div><div className="sv-request-actions"><button className="sv-primary-button" onClick={()=>respond(req.id,'accepted')}>Accept</button><button onClick={()=>respond(req.id,'declined')}>Decline</button></div></div>)}</div></section>}
 
     <section className="sv-friends-layout"><div className="sv-card"><div className="sv-section-head"><div><span className="sv-section-label">YOUR STUDY CIRCLE</span><h2>{friends.length} friend{friends.length===1?'':'s'}</h2></div></div>{friends.length===0?<div className="sv-empty-social"><span>👥</span><strong>Your study circle is empty</strong><p>Search for a classmate or friend above to start building it.</p></div>:<div className="sv-people-list">{friends.map(row=>{const person=friendProfile(row,userId);return <button className={`sv-person-row sv-friend-button ${selected?.id===person?.id?'selected':''}`} key={row.id} onClick={()=>openChat(row)}><Avatar person={person}/><div className="sv-person-info"><strong>{row.nickname || profileName(person)}</strong><small>@{profileUsername(person)} · <i className={`sv-status-dot ${profileStatus(person)==='Studying'?'online':''}`}></i>{profileStatus(person)}</small></div><span className="sv-chat-arrow">Chat →</span></button>})}</div>}</div>
 
