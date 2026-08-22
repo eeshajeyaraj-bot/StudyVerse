@@ -25,7 +25,7 @@ export default function Rooms() {
       const { data } = await supabase.auth.getUser()
       if (data?.user) {
         setUserId(data.user.id)
-        setDisplayName(data.user.email?.split('@')[0] || 'Scholar')
+        setDisplayName(data.user.user_metadata?.display_name || data.user.email?.split('@')[0] || 'Scholar')
       }
       setLoading(false)
     }
@@ -60,6 +60,21 @@ export default function Rooms() {
       if (memberError) {
         setError(memberError.message)
         setCreating(false)
+        return
+      }
+
+      const { error: historyError } = await supabase.from('room_history').insert({
+        host_id: userId,
+        room_id: room.id,
+        room_name: room.room_name,
+        room_code: room.room_code,
+      })
+
+      if (historyError) {
+        setError(`Room created, but history could not be saved: ${historyError.message}`)
+        setCreating(false)
+        setActiveRoomId(room.id)
+        setView('room')
         return
       }
 
@@ -146,7 +161,7 @@ export default function Rooms() {
             {view === 'home' && (
               <div style={styles.grid}>
                 <button className="sv-card sv-room-choice" onClick={() => { setView('create'); setError('') }}>
-                  <span className="sv-room-choice-icon">🏰</span>
+                  <span className="sv-room-choice-icon">🏠</span>
                   <strong className="sv-room-choice-title">Create a Private Room</strong>
                   <span className="sv-room-choice-text">Create a room and receive a random 6-character invite code.</span>
                 </button>
@@ -168,7 +183,7 @@ export default function Rooms() {
                     {[2, 3, 4, 5, 6, 8].map(n => <option key={n} value={n}>{n} members</option>)}
                   </select>
                   {error && <p style={styles.error}>{error}</p>}
-                  <button className="sv-btn-primary" onClick={handleCreate} disabled={creating}>{creating ? 'Creating...' : '🏰 Create Private Room'}</button>
+                  <button className="sv-btn-primary" onClick={handleCreate} disabled={creating}>{creating ? 'Creating...' : 'Create Private Room'}</button>
                 </div>
               </div>
             )}
@@ -180,7 +195,7 @@ export default function Rooms() {
                 <div style={styles.form}>
                   <input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="ENTER CODE" maxLength={6} autoComplete="off" style={styles.code} onKeyDown={e => e.key === 'Enter' && handleJoin()} />
                   {error && <p style={styles.error}>{error}</p>}
-                  <button className="sv-btn-primary" onClick={handleJoin} disabled={joining || joinCode.length !== 6}>{joining ? 'Checking code...' : '🔐 Join with Code'}</button>
+                  <button className="sv-btn-primary" onClick={handleJoin} disabled={joining || joinCode.length !== 6}>{joining ? 'Checking code...' : 'Join with Code'}</button>
                 </div>
               </div>
             )}
