@@ -48,11 +48,23 @@ export default function Friends() {
   }, [userId])
 
   useEffect(() => {
-    const q = search.trim().toLowerCase()
+    const q = search.trim().replace(/[%_]/g, '')
     if (!q || q.length < 2 || !userId) { setResults([]); return }
     const timer = setTimeout(async () => {
-      const { data } = await supabase.from('profiles').select('id,display_name,username,bio,study_goal,profile_picture_url,emoji_avatar,status').neq('id', userId).or(`username.ilike.%${q}%,display_name.ilike.%${q}%`).limit(12)
-      setResults(data || [])
+      const fields = 'id,display_name,username,bio,study_goal,profile_picture_url,emoji_avatar,status'
+      const [usernameResult, nameResult] = await Promise.all([
+        supabase.from('profiles').select(fields).neq('id', userId).ilike('username', `%${q}%`).limit(12),
+        supabase.from('profiles').select(fields).neq('id', userId).ilike('display_name', `%${q}%`).limit(12),
+      ])
+      const searchError = usernameResult.error || nameResult.error
+      if (searchError) {
+        setResults([])
+        setNotice(`Friend search failed: ${searchError.message}`)
+        return
+      }
+      const merged = [...(usernameResult.data || []), ...(nameResult.data || [])]
+      const unique = Array.from(new Map(merged.map(person => [person.id, person])).values())
+      setResults(unique.slice(0, 12))
     }, 250)
     return () => clearTimeout(timer)
   }, [search, userId])
@@ -150,7 +162,7 @@ export default function Friends() {
 
     {notice && <button className="sv-social-notice" onClick={()=>setNotice('')}>{notice} ×</button>}
 
-    <section className="sv-social-search sv-card"><div><span className="sv-section-label">FIND STUDY PARTNERS</span><h2>Search by name or username</h2></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search e.g. eesha_studies" aria-label="Search users"/>{results.length>0&&<div className="sv-search-results">{results.map(person=>{const existing=acceptedIds.has(person.id);return <div className="sv-person-row" key={person.id}><Avatar person={person}/><div className="sv-person-info"><strong>{person.display_name}</strong><small>@{person.username || 'student'} · {person.status}</small></div><button className="sv-primary-button" disabled={existing} onClick={()=>sendRequest(person.id)}>{existing?'Friends':'Add friend'}</button></div>})}</div>}</section>
+    <section className="sv-social-search sv-card"><div><span className="sv-section-label">FIND STUDY PARTNERS</span><h2>Search by name or username</h2></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search e.g. eesha_studies" aria-label="Search users"/>{search.trim().length >= 2 && !notice && results.length===0 && <div style={{paddingTop:12,color:'var(--app-muted)',fontSize:12}}>No matching StudyVerse user found. Try their exact username.</div>}{results.length>0&&<div className="sv-search-results">{results.map(person=>{const existing=acceptedIds.has(person.id);return <div className="sv-person-row" key={person.id}><Avatar person={person}/><div className="sv-person-info"><strong>{person.display_name}</strong><small>@{person.username || 'student'} · {person.status}</small></div><button className="sv-primary-button" disabled={existing} onClick={()=>sendRequest(person.id)}>{existing?'Friends':'Add friend'}</button></div>})}</div>}</section>
 
     {requests.length>0&&<section className="sv-card"><div className="sv-section-head"><div><span className="sv-section-label">PENDING</span><h2>Friend requests <span className="sv-count">{requests.length}</span></h2></div></div><div className="sv-people-list">{requests.map(req=><div className="sv-person-row" key={req.id}><Avatar person={req.requester}/><div className="sv-person-info"><strong>{req.requester?.display_name}</strong><small>@{req.requester?.username || 'student'} · {req.requester?.status || 'Available'}</small></div><div className="sv-request-actions"><button className="sv-primary-button" onClick={()=>respond(req.id,'accepted')}>Accept</button><button onClick={()=>respond(req.id,'declined')}>Decline</button></div></div>)}</div></section>}
 
