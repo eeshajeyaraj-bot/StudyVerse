@@ -30,16 +30,57 @@ export default function Friends() {
   async function loadSocial() {
     if (!userId) return
     setLoading(true)
-    const [{ data: me, error: meError }, { data: rows, error: rowsError }, { data: pending, error: pendingError }] = await Promise.all([
+
+    // Do not rely on a PostgREST embedded relationship between friendships and profiles.
+    // The database already has the user_id/friend_id columns, but the FK relationship
+    // may not be present in Supabase's schema cache. Fetch friendships first and then
+    // fetch the required profiles explicitly.
+    const [meResult, rowsResult] = await Promise.all([
       supabase.from('profiles').select(profileFields).eq('id', userId).maybeSingle(),
-      supabase.from('friendships').select(`id,user_id,friend_id,status,nickname,created_at,user:profiles!friendships_user_id_fkey(${profileFields}),friend:profiles!friendships_friend_id_fkey(${profileFields})`).or(`user_id.eq.${userId},friend_id.eq.${userId}`).order('created_at', { ascending: false }),
-      supabase.from('friendships').select(`id,user_id,friend_id,status,created_at,user:profiles!friendships_user_id_fkey(${profileFields})`).eq('friend_id', userId).eq('status', 'pending').order('created_at', { ascending: false }),
+      supabase.from('friendships').select('id,user_id,friend_id,status,nickname,created_at').or(`user_id.eq.${userId},friend_id.eq.${userId}`).order('created_at', { ascending: false }),
     ])
-    if (me) setProfile(me)
-    const socialError = meError || rowsError || pendingError
-    if (socialError) setNotice(`Friends could not be loaded: ${socialError.message}`)
-    setFriends((rows || []).filter(r => r.status === 'accepted'))
-    setRequests(pending || [])
+
+    if (meResult.data) setProfile(meResult.data)
+    if (meResult.error) {
+      setNotice(`Friends could not be loaded: ${meResult.error.message}`)
+      setFriends([])
+      setRequests([])
+      setLoading(false)
+      return
+    }
+    if (rowsResult.error) {
+      setNotice(`Friends could not be loaded: ${rowsResult.error.message}`)
+      setFriends([])
+      setRequests([])
+      setLoading(false)
+      return
+    }
+
+    const rows = rowsResult.data || []
+    const profileIds = Array.from(new Set(rows.flatMap(row => [row.user_id, row.friend_id]).filter(Boolean)))
+    let profiles = []
+
+    if (profileIds.length > 0) {
+      const { data, error } = await supabase.from('profiles').select(profileFields).in('id', profileIds)
+      if (error) {
+        setNotice(`Friend profiles could not be loaded: ${error.message}`)
+        setFriends([])
+        setRequests([])
+        setLoading(false)
+        return
+      }
+      profiles = data || []
+    }
+
+    const profileMap = new Map(profiles.map(person => [person.id, person]))
+    const hydratedRows = rows.map(row => ({
+      ...row,
+      user: profileMap.get(row.user_id) || null,
+      friend: profileMap.get(row.friend_id) || null,
+    }))
+
+    setFriends(hydratedRows.filter(row => row.status === 'accepted'))
+    setRequests(hydratedRows.filter(row => row.friend_id === userId && row.status === 'pending'))
     setLoading(false)
   }
 
@@ -91,6 +132,7 @@ export default function Friends() {
       })
       if (notificationError) console.error('Friend request notification failed:', notificationError.message)
       setNotice('Friend request sent.'); setSearch(''); setResults([])
+      await loadSocial()
     }
   }
 
