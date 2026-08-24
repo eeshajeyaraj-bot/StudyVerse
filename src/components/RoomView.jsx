@@ -1,11 +1,178 @@
-import { useEffect,useRef,useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-const ICON={studying:'🟢',break:'🟡',offline:'⚫'};const tm=s=>`${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
-export default function RoomView({roomId,userId,onLeft}){const[room,setRoom]=useState(null),[members,setMembers]=useState([]),[messages,setMessages]=useState([]),[input,setInput]=useState(''),[subject,setSubject]=useState(''),[elapsed,setElapsed]=useState(0),[loading,setLoading]=useState(true),[menu,setMenu]=useState(null),[editing,setEditing]=useState(null),[editText,setEditText]=useState(''),[uploading,setUploading]=useState(false);const end=useRef(),file=useRef(),camera=useRef();
- async function load(){const[r,m,msg]=await Promise.all([supabase.from('study_rooms').select('*').eq('id',roomId).single(),supabase.from('room_members').select('*').eq('room_id',roomId).order('joined_at'),supabase.from('room_messages').select('*').eq('room_id',roomId).order('created_at').limit(200)]);setRoom(r.data);setMembers(m.data||[]);setMessages(msg.data||[]);setLoading(false)}useEffect(()=>{load()},[roomId]);useEffect(()=>{if(!room)return;const c=supabase.channel(`room-${roomId}`).on('postgres_changes',{event:'*',schema:'public',table:'room_messages',filter:`room_id=eq.${roomId}`},p=>{if(p.eventType==='DELETE')setMessages(x=>x.filter(a=>a.id!==p.old.id));else setMessages(x=>[...x.filter(a=>a.id!==p.new.id),p.new].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)))}).on('postgres_changes',{event:'*',schema:'public',table:'room_members',filter:`room_id=eq.${roomId}`},()=>load()).subscribe();return()=>supabase.removeChannel(c)},[roomId,room?.id]);useEffect(()=>{end.current?.scrollIntoView({behavior:'smooth'})},[messages.length]);useEffect(()=>{if(room?.timer_status==='running'&&room.timer_started_at){const i=setInterval(()=>setElapsed(Math.floor((Date.now()-new Date(room.timer_started_at))/1000)),1000);return()=>clearInterval(i)}setElapsed(0)},[room?.timer_status,room?.timer_started_at]);
- const host=room?.host_id===userId;async function start(){const{error}=await supabase.from('study_rooms').update({timer_status:'running',timer_started_at:new Date().toISOString(),current_subject:subject||'General Study'}).eq('id',roomId);if(error)alert(error.message)}async function stop(){const started=room?.timer_started_at;if(!started)return;const endAt=new Date().toISOString(),secs=Math.floor((new Date(endAt)-new Date(started))/1000);if(secs>0){const active=members.filter(m=>m.status==='studying');if(active.length)await supabase.from('room_sessions').insert(active.map(m=>({room_id:roomId,user_id:m.user_id,subject:room.current_subject,started_at:started,ended_at:endAt,duration_seconds:secs,xp_earned:Math.floor(secs/60)*2})))}await supabase.from('study_rooms').update({timer_status:'idle',timer_started_at:null}).eq('id',roomId)}async function status(v){await supabase.from('room_members').update({status:v}).eq('room_id',roomId).eq('user_id',userId)}
- async function send(text=input,att=null){if(!text.trim()&&!att)return;const me=members.find(m=>m.user_id===userId),name=me?.display_name||'StudyVerse member';const row={room_id:roomId,user_id:userId,display_name:name,message:text.trim()||'📎 Attachment',sender_id:userId,body:text.trim()||'📎 Attachment',...(att||{})};const{data,error}=await supabase.from('room_messages').insert(row).select().single();if(error){alert(error.message);return}const rec=members.filter(m=>m.user_id!==userId).map(m=>({user_id:m.user_id,type:'message',title:`${name} sent a room message`,message:(text.trim()||'Sent an attachment').slice(0,180),link:'/rooms',actor_id:userId,metadata:{room_id:roomId,message_id:data?.id}}));if(rec.length)await supabase.from('notifications').insert(rec);setInput('')}
- async function upload(f){if(!f)return;setUploading(true);const ext=(f.name.split('.').pop()||'bin').toLowerCase(),path=`${userId}/room-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;const u=await supabase.storage.from('studyverse-chat').upload(path,f);if(u.error){alert(u.error.message);setUploading(false);return}const s=await supabase.storage.from('studyverse-chat').createSignedUrl(path,60*60*24*30);if(s.error){alert(s.error.message);setUploading(false);return}await send('',{attachment_url:s.data.signedUrl});setUploading(false)}
- async function edit(m){setMenu(null);setEditing(m.id);setEditText(m.body||m.message||'')}async function save(m){const v=editText.trim();if(!v)return;const{error}=await supabase.from('room_messages').update({body:v,message:v}).eq('id',m.id).eq('user_id',userId);if(error)alert(error.message);else{setEditing(null);setEditText('')}}async function del(m){setMenu(null);const{error}=await supabase.from('room_messages').delete().eq('id',m.id).eq('user_id',userId);if(error)alert(error.message)}async function leave(){await supabase.from('room_members').delete().eq('room_id',roomId).eq('user_id',userId);onLeft?.()}
- if(loading||!room)return <div className="sv-card">Loading room...</div>;return <div className="sv-room-view"><div style={s.head}><div><p className="sv-section-label">Study Room</p><h1>{room.room_name}</h1><p style={s.muted}>Private focus space · {members.length} of {room.max_members} members</p></div><div style={s.code}>Room code<br/><strong>{room.room_code}</strong></div></div><div className="sv-card"><p className="sv-section-label">Members</p>{members.map(m=><div style={s.member} key={m.id}><span>{m.user_id===room.host_id?'●':'○'} {m.display_name}</span><span>{ICON[m.status]||'⚫'} {m.status}</span></div>)}</div><div className="sv-card" style={s.timer}><p className="sv-section-label">Shared Study Session · {room.current_subject||'General Study'}</p><div style={s.clock}>{tm(elapsed)}</div>{host?(room.timer_status==='running'?<button onClick={stop}>End Session</button>:<div style={s.row}><input placeholder="Subject (optional)" value={subject} onChange={e=>setSubject(e.target.value)}/><button onClick={start}>Start Session</button></div>):<p style={s.muted}>Only the room host can start or end the shared session.</p>}</div><div className="sv-card sv-room-chat-shell" style={s.chat}><div style={s.chatHead}><div><p className="sv-section-label">Room Chat</p><small style={s.muted}>Chat with everyone in this room</small></div><strong>{messages.length}</strong></div><div className="sv-room-chat-messages">{messages.map(m=>{const mine=(m.user_id||m.sender_id)===userId,text=m.body||m.message||'',name=m.display_name||members.find(x=>x.user_id===(m.user_id||m.sender_id))?.display_name||'StudyVerse member';return <div key={m.id} className={`sv-room-message-row ${mine?'mine':''}`}><div className={`sv-room-message-bubble ${mine?'mine':''}`}><small>{mine?'You':name}</small>{editing===m.id?<div style={s.row}><input value={editText} onChange={e=>setEditText(e.target.value)}/><button onClick={()=>save(m)}>Save</button></div>:<><div>{text}</div>{m.attachment_url&&<a href={m.attachment_url} target="_blank" rel="noreferrer">📎 Attachment</a>}{mine&&<button className="sv-room-message-dots" aria-label="Message options" onClick={()=>setMenu(menu===m.id?null:m.id)}><span className="sv-dots-icon"><i></i><i></i><i></i></span></button>}{menu===m.id&&mine&&<div className="sv-message-menu"><button onClick={()=>edit(m)}>Edit</button><button onClick={()=>del(m)}>Delete</button></div>}</>}</div></div>})}<div ref={end}/></div><div className="sv-room-composer"><button title="Camera" aria-label="Camera" onClick={()=>camera.current?.click()}>📷</button><button title="Attach file" aria-label="Attach file" onClick={()=>file.current?.click()}>📎</button><input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={e=>upload(e.target.files?.[0])}/><input ref={file} type="file" hidden onChange={e=>upload(e.target.files?.[0])}/><input value={input} onChange={e=>setInput(e.target.value)} placeholder="Message your study group..." onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&(e.preventDefault(),send())}/><button disabled={uploading||!input.trim()} onClick={()=>send()}>{uploading?'Uploading…':'Send'}</button></div></div><div className="sv-card"><p className="sv-section-label">My Status</p><div style={s.row}><button onClick={()=>status('studying')}>🟢 Studying</button><button onClick={()=>status('break')}>🟡 Break</button></div></div><button onClick={leave} style={s.leave}>Leave Room</button></div>}
-const s={head:{display:'flex',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginBottom:24},muted:{color:'var(--app-muted)',fontSize:13},code:{padding:'10px 18px',borderRadius:14,background:'var(--app-accent-soft)',border:'1px solid var(--app-border)',textAlign:'center'},member:{display:'flex',justifyContent:'space-between',padding:'10px 12px',borderBottom:'1px solid var(--app-border)'},timer:{textAlign:'center',padding:30},clock:{fontSize:50,fontWeight:700,letterSpacing:3,margin:'12px 0 20px'},row:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'},chat:{padding:0,overflow:'hidden'},chatHead:{display:'flex',justifyContent:'space-between',padding:'18px 20px',borderBottom:'1px solid var(--app-border)'},leave:{marginTop:5,color:'#b94b4b',background:'transparent',border:'1px solid rgba(200,70,70,.3)',padding:'10px 16px',borderRadius:10}}
+import '../styles/chat.css'
+import '../styles/chat-overrides.css'
+
+const ICON = { studying: '🟢', break: '🟡', offline: '⚫' }
+const ATTACHMENT_PREFIX = '__SV_ATTACHMENT__'
+const tm = s => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+
+function attachmentFrom(message) {
+  const raw = message?.body || message?.message || ''
+  if (!raw.startsWith(ATTACHMENT_PREFIX)) return null
+  try { return JSON.parse(raw.slice(ATTACHMENT_PREFIX.length)) } catch { return null }
+}
+
+export default function RoomView({ roomId, userId, onLeft }) {
+  const [room, setRoom] = useState(null)
+  const [members, setMembers] = useState([])
+  const [messages, setMessages] = useState([])
+  const [input, setInput] = useState('')
+  const [subject, setSubject] = useState('')
+  const [elapsed, setElapsed] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [menu, setMenu] = useState(null)
+  const [editing, setEditing] = useState(null)
+  const [editText, setEditText] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const end = useRef()
+  const file = useRef()
+  const camera = useRef()
+
+  async function load() {
+    const [r, m, msg] = await Promise.all([
+      supabase.from('study_rooms').select('*').eq('id', roomId).single(),
+      supabase.from('room_members').select('*').eq('room_id', roomId).order('joined_at'),
+      supabase.from('room_messages').select('*').eq('room_id', roomId).order('created_at').limit(200)
+    ])
+    setRoom(r.data); setMembers(m.data || []); setMessages(msg.data || []); setLoading(false)
+  }
+
+  useEffect(() => { load() }, [roomId])
+
+  useEffect(() => {
+    if (!room) return
+    const c = supabase.channel(`room-${roomId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_messages', filter: `room_id=eq.${roomId}` }, p => {
+        if (p.eventType === 'DELETE') setMessages(x => x.filter(a => a.id !== p.old.id))
+        else setMessages(x => [...x.filter(a => a.id !== p.new.id), p.new].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)))
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_members', filter: `room_id=eq.${roomId}` }, () => load())
+      .subscribe()
+    return () => supabase.removeChannel(c)
+  }, [roomId, room?.id])
+
+  useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages.length])
+
+  useEffect(() => {
+    if (room?.timer_status === 'running' && room.timer_started_at) {
+      const i = setInterval(() => setElapsed(Math.floor((Date.now() - new Date(room.timer_started_at)) / 1000)), 1000)
+      return () => clearInterval(i)
+    }
+    setElapsed(0)
+  }, [room?.timer_status, room?.timer_started_at])
+
+  const host = room?.host_id === userId
+
+  async function start() {
+    const { error } = await supabase.from('study_rooms').update({ timer_status: 'running', timer_started_at: new Date().toISOString(), current_subject: subject || 'General Study' }).eq('id', roomId)
+    if (error) alert(error.message)
+  }
+
+  async function stop() {
+    const started = room?.timer_started_at
+    if (!started) return
+    const endAt = new Date().toISOString()
+    const secs = Math.floor((new Date(endAt) - new Date(started)) / 1000)
+    if (secs > 0) {
+      const active = members.filter(m => m.status === 'studying')
+      if (active.length) await supabase.from('room_sessions').insert(active.map(m => ({ room_id: roomId, user_id: m.user_id, subject: room.current_subject, started_at: started, ended_at: endAt, duration_seconds: secs, xp_earned: Math.floor(secs / 60) * 2 })))
+    }
+    await supabase.from('study_rooms').update({ timer_status: 'idle', timer_started_at: null }).eq('id', roomId)
+  }
+
+  async function status(v) {
+    await supabase.from('room_members').update({ status: v }).eq('room_id', roomId).eq('user_id', userId)
+  }
+
+  async function send(text = input, att = null) {
+    if (!text.trim() && !att) return
+    const me = members.find(m => m.user_id === userId)
+    const name = me?.display_name || 'StudyVerse member'
+    const payload = att ? `${ATTACHMENT_PREFIX}${JSON.stringify(att)}` : text.trim()
+    const row = { room_id: roomId, user_id: userId, display_name: name, message: payload, sender_id: userId, body: payload }
+    const { data, error } = await supabase.from('room_messages').insert(row).select().single()
+    if (error) { alert(error.message); return }
+    const rec = members.filter(m => m.user_id !== userId).map(m => ({ user_id: m.user_id, type: 'message', title: `${name} sent a room message`, message: att ? `Sent ${att.name || 'an attachment'}` : text.trim().slice(0, 180), link: '/rooms', actor_id: userId, metadata: { room_id: roomId, message_id: data?.id } }))
+    if (rec.length) await supabase.from('notifications').insert(rec)
+    setInput('')
+  }
+
+  async function upload(f) {
+    if (!f) return
+    setUploading(true)
+    const ext = (f.name.split('.').pop() || 'bin').toLowerCase()
+    const path = `${userId}/room-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const u = await supabase.storage.from('studyverse-chat').upload(path, f)
+    if (u.error) { alert(u.error.message); setUploading(false); return }
+    const s = await supabase.storage.from('studyverse-chat').createSignedUrl(path, 60 * 60 * 24 * 30)
+    if (s.error) { alert(s.error.message); setUploading(false); return }
+    await send('', { url: s.data.signedUrl, name: f.name, type: f.type || 'application/octet-stream' })
+    setUploading(false)
+  }
+
+  async function edit(m) { setMenu(null); setEditing(m.id); setEditText(m.body || m.message || '') }
+
+  async function save(m) {
+    const v = editText.trim()
+    if (!v) return
+    const { error } = await supabase.from('room_messages').update({ body: v, message: v }).eq('id', m.id).eq('user_id', userId)
+    if (error) alert(error.message)
+    else { setEditing(null); setEditText('') }
+  }
+
+  async function del(m) {
+    setMenu(null)
+    const { error } = await supabase.from('room_messages').delete().eq('id', m.id).eq('user_id', userId)
+    if (error) alert(error.message)
+  }
+
+  async function leave() {
+    await supabase.from('room_members').delete().eq('room_id', roomId).eq('user_id', userId)
+    onLeft?.()
+  }
+
+  if (loading || !room) return <div className="sv-card">Loading room...</div>
+
+  return <div className="sv-room-view">
+    <div style={s.head}><div><p className="sv-section-label">Study Room</p><h1>{room.room_name}</h1><p style={s.muted}>Private focus space · {members.length} of {room.max_members} members</p></div><div style={s.code}>Room code<br /><strong>{room.room_code}</strong></div></div>
+    <div className="sv-card"><p className="sv-section-label">Members</p>{members.map(m => <div style={s.member} key={m.id}><span>{m.user_id === room.host_id ? '●' : '○'} {m.display_name}</span><span>{ICON[m.status] || '⚫'} {m.status}</span></div>)}</div>
+    <div className="sv-card" style={s.timer}><p className="sv-section-label">Shared Study Session · {room.current_subject || 'General Study'}</p><div style={s.clock}>{tm(elapsed)}</div>{host ? (room.timer_status === 'running' ? <button onClick={stop}>End Session</button> : <div style={s.row}><input placeholder="Subject (optional)" value={subject} onChange={e => setSubject(e.target.value)} /><button onClick={start}>Start Session</button></div>) : <p style={s.muted}>Only the room host can start or end the shared session.</p>}</div>
+
+    <div className="sv-card sv-room-chat-shell" style={s.chat}>
+      <div style={s.chatHead}><div><p className="sv-section-label">Room Chat</p><small style={s.muted}>Chat with everyone in this room</small></div><strong>{messages.length}</strong></div>
+      <div className="sv-room-chat-messages">
+        {messages.map(m => {
+          const mine = (m.user_id || m.sender_id) === userId
+          const att = attachmentFrom(m)
+          const text = m.body || m.message || ''
+          const name = m.display_name || members.find(x => x.user_id === (m.user_id || m.sender_id))?.display_name || 'StudyVerse member'
+          return <div key={m.id} className={`sv-room-message-row ${mine ? 'mine' : ''}`}>
+            <div className={`sv-room-message-bubble ${mine ? 'mine' : ''}`}>
+              <small>{mine ? 'You' : name}</small>
+              {editing === m.id ? <div style={s.row}><input value={editText} onChange={e => setEditText(e.target.value)} onKeyDown={e => e.key === 'Enter' && save(m)} /><button onClick={() => save(m)}>Save</button></div> : <>
+                {att ? <a href={att.url} target="_blank" rel="noreferrer" className="sv-chat-attachment">📎 {att.name || 'Open attachment'}</a> : <div>{text}</div>}
+                {mine && <button className="sv-room-message-dots" aria-label="Message options" onClick={() => setMenu(menu === m.id ? null : m.id)}><span className="sv-dots-icon"><i></i><i></i><i></i></span></button>}
+                {menu === m.id && mine && <div className="sv-message-menu"><button onClick={() => edit(m)}>Edit</button><button onClick={() => del(m)}>Delete</button></div>}
+              </>}
+            </div>
+          </div>
+        })}
+        <div ref={end} />
+      </div>
+      <div className="sv-room-composer">
+        <button title="Take photo" aria-label="Take photo" onClick={() => camera.current?.click()}>📷</button>
+        <button title="Attach any file" aria-label="Attach any file" onClick={() => file.current?.click()}>📎</button>
+        <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={e => upload(e.target.files?.[0])} />
+        <input ref={file} type="file" hidden onChange={e => upload(e.target.files?.[0])} />
+        <input value={input} onChange={e => setInput(e.target.value)} placeholder="Message your study group..." onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())} />
+        <button disabled={uploading || !input.trim()} onClick={() => send()}>{uploading ? 'Uploading…' : 'Send'}</button>
+      </div>
+    </div>
+
+    <div className="sv-card"><p className="sv-section-label">My Status</p><div style={s.row}><button onClick={() => status('studying')}>🟢 Studying</button><button onClick={() => status('break')}>🟡 Break</button></div></div>
+    <button onClick={leave} style={s.leave}>Leave Room</button>
+  </div>
+}
+
+const s = { head: { display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 24 }, muted: { color: 'var(--app-muted)', fontSize: 13 }, code: { padding: '10px 18px', borderRadius: 14, background: 'var(--app-accent-soft)', border: '1px solid var(--app-border)', textAlign: 'center' }, member: { display: 'flex', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--app-border)' }, timer: { textAlign: 'center', padding: 30 }, clock: { fontSize: 50, fontWeight: 700, letterSpacing: 3, margin: '12px 0 20px' }, row: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }, chat: { padding: 0, overflow: 'hidden' }, chatHead: { display: 'flex', justifyContent: 'space-between', padding: '18px 20px', borderBottom: '1px solid var(--app-border)' }, leave: { marginTop: 5, color: '#b94b4b', background: 'transparent', border: '1px solid rgba(200,70,70,.3)', padding: '10px 16px', borderRadius: 10 } }
