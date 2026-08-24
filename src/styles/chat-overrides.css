@@ -1,0 +1,14 @@
+.sv-chat-header-menu-panel{right:0!important;top:46px!important}
+.sv-chat-header-menu-panel button{color:#3d342e!important;background:transparent!important}
+.sv-nickname-dialog{width:min(360px,calc(100vw - 32px));padding:0;border:1px solid #ddd2c8;border-radius:16px;background:#fffdf9;color:#302b27;box-shadow:0 24px 70px rgba(50,40,30,.22)}
+.sv-nickname-dialog::backdrop{background:rgba(35,27,22,.28);backdrop-filter:blur(3px)}
+.sv-nickname-dialog form{padding:20px}
+.sv-nickname-dialog h3{font-size:17px;margin-bottom:6px;color:#302b27}
+.sv-nickname-dialog p{font-size:12px;line-height:1.5;color:#81776f;margin-bottom:14px}
+.sv-nickname-dialog input{min-height:42px!important;background:#fff!important;color:#302b27!important;border:1px solid #ddd2c8!important}
+.sv-nickname-dialog form>div{display:flex;justify-content:flex-end;gap:7px;margin-top:14px}
+.sv-nickname-dialog form button{min-height:38px!important;padding:8px 13px!important;border-radius:9px!important;border:1px solid #d9cec4!important;background:#f3ebe3!important;color:#51453d!important;box-shadow:none!important;transform:none!important}
+.sv-nickname-dialog form button[type="submit"]{background:#80624d!important;border-color:#80624d!important;color:#fff!important}
+.sv-message-bubble>span{display:inline}
+.sv-chat-tools>button:first-child::after{content:''}
+.sv-chat-tools>button:nth-child(2)::after{content:''}
