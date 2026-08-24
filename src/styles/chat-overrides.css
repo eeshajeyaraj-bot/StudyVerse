@@ -1,14 +1,35 @@
 .sv-chat-header-menu-panel{right:0!important;top:46px!important}
-.sv-chat-header-menu-panel button{color:#3d342e!important;background:transparent!important}
-.sv-nickname-dialog{width:min(360px,calc(100vw - 32px));padding:0;border:1px solid #ddd2c8;border-radius:16px;background:#fffdf9;color:#302b27;box-shadow:0 24px 70px rgba(50,40,30,.22)}
-.sv-nickname-dialog::backdrop{background:rgba(35,27,22,.28);backdrop-filter:blur(3px)}
+
+/* Nickname dialog: always centered in the viewport, never stuck in a corner */
+.sv-nickname-dialog{position:fixed!important;left:50%!important;top:50%!important;right:auto!important;bottom:auto!important;transform:translate(-50%,-50%)!important;margin:0!important;width:min(360px,calc(100vw - 32px));padding:0;border:1px solid #ddd2c8;border-radius:16px;background:#fffdf9;color:#302b27;box-shadow:0 24px 70px rgba(50,40,30,.22);z-index:1000}
+.sv-nickname-dialog::backdrop{background:rgba(35,27,22,.34);backdrop-filter:blur(4px)}
 .sv-nickname-dialog form{padding:20px}
 .sv-nickname-dialog h3{font-size:17px;margin-bottom:6px;color:#302b27}
 .sv-nickname-dialog p{font-size:12px;line-height:1.5;color:#81776f;margin-bottom:14px}
-.sv-nickname-dialog input{min-height:42px!important;background:#fff!important;color:#302b27!important;border:1px solid #ddd2c8!important}
+.sv-nickname-dialog input{min-height:42px!important;background:#fff!important;color:#302b27!important;border:1px solid #ddd2c8!important;border-radius:10px!important}
 .sv-nickname-dialog form>div{display:flex;justify-content:flex-end;gap:7px;margin-top:14px}
 .sv-nickname-dialog form button{min-height:38px!important;padding:8px 13px!important;border-radius:9px!important;border:1px solid #d9cec4!important;background:#f3ebe3!important;color:#51453d!important;box-shadow:none!important;transform:none!important}
 .sv-nickname-dialog form button[type="submit"]{background:#80624d!important;border-color:#80624d!important;color:#fff!important}
-.sv-message-bubble>span{display:inline}
-.sv-chat-tools>button:first-child::after{content:''}
-.sv-chat-tools>button:nth-child(2)::after{content:''}
+
+/* Keep the three-dot header control at the true top-right of the chat header */
+.sv-chat-header{position:relative!important}
+.sv-chat-header-menu{margin-left:auto!important;position:relative!important;flex:0 0 auto!important}
+.sv-chat-header-menu>button{width:40px!important;height:40px!important;min-height:40px!important;border-radius:10px!important}
+
+/* More elegant message area and composer */
+.sv-messages{background:#fcfaf6!important;background-image:radial-gradient(rgba(139,92,246,.035) 1px,transparent 1px)!important;background-size:22px 22px!important}
+.sv-message-bubble{box-shadow:0 2px 8px rgba(80,60,40,.035)!important}
+.sv-message.mine .sv-message-bubble{background:#f0e5dc!important;border-color:#dfd2c7!important}
+.sv-message-bubble>small{letter-spacing:.01em!important}
+.sv-chat-tools{min-height:58px!important}
+.sv-chat-tools>button:first-child,.sv-chat-tools>button:nth-child(2){flex:0 0 40px!important}
+.sv-chat-tools>input:not([type="file"]){height:40px!important}
+.sv-chat-tools>button:last-child{flex:0 0 auto!important}
+
+/* Room chat follows the same visual rhythm */
+.sv-room-chat-shell{box-shadow:0 10px 32px rgba(80,60,40,.08)!important}
+.sv-room-chat-shell .sv-room-chat-messages{background:#fcfaf6!important;background-image:radial-gradient(rgba(139,92,246,.035) 1px,transparent 1px)!important;background-size:22px 22px!important}
+
+@media(max-width:600px){
+  .sv-nickname-dialog{width:calc(100vw - 28px)!important}
+}
