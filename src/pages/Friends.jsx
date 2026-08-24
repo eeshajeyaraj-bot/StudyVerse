@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import '../styles/chat.css'
+import '../styles/chat-overrides.css'
 
 const F = 'id,name,display_name,avatar_url,avatar_emoji,bio'
 const nm = (p) => p?.display_name || p?.name || 'StudyVerse member'
@@ -120,9 +121,7 @@ export default function Friends() {
 
   async function send(body = text, att = null) {
     if (!selected || !uid || (!body.trim() && !att)) return
-    const payload = att
-      ? `${ATTACHMENT_PREFIX}${JSON.stringify(att)}`
-      : body.trim()
+    const payload = att ? `${ATTACHMENT_PREFIX}${JSON.stringify(att)}` : body.trim()
     const { error } = await supabase.from('direct_messages').insert({ sender_id: uid, recipient_id: selected.id, body: payload, message: payload })
     if (error) { setNotice(error.message); return }
     await supabase.from('notifications').insert({ user_id: selected.id, type: 'message', title: `Message from ${nm(profile)}`, message: att ? `Sent ${att.name || 'an attachment'}` : body.trim().slice(0, 180), link: '/friends', actor_id: uid, metadata: { sender_id: uid } })
@@ -182,82 +181,17 @@ export default function Friends() {
   if (loading) return <div className="sv-page sv-container"><div className="sv-card">Loading your study circle…</div></div>
 
   return <div className="sv-page sv-container sv-friends-page">
-    <div className="sv-page-header">
-      <div><span className="sv-eyebrow">STUDY TOGETHER</span><h1>Friends</h1><p className="sv-page-subtitle">Build your study circle and chat while you learn.</p></div>
-    </div>
-
+    <div className="sv-page-header"><div><span className="sv-eyebrow">STUDY TOGETHER</span><h1>Friends</h1><p className="sv-page-subtitle">Build your study circle and chat while you learn.</p></div></div>
     {notice && <button className="sv-social-notice" onClick={() => setNotice('')}>{notice} ×</button>}
-
-    <section className="sv-social-search sv-card">
-      <span className="sv-section-label">FIND STUDY PARTNERS</span>
-      <h2>Search by name or username</h2>
-      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or username" />
-      {results.map(p => <div className="sv-person-row" key={p.id}>{av(p)}<div className="sv-person-info"><strong>{nm(p)}</strong><small>@{p.name}</small></div><button disabled={accepted.has(p.id)} onClick={() => request(p.id)}>{accepted.has(p.id) ? 'Friends' : 'Add friend'}</button></div>)}
-    </section>
-
+    <section className="sv-social-search sv-card"><span className="sv-section-label">FIND STUDY PARTNERS</span><h2>Search by name or username</h2><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or username" />{results.map(p => <div className="sv-person-row" key={p.id}>{av(p)}<div className="sv-person-info"><strong>{nm(p)}</strong><small>@{p.name}</small></div><button disabled={accepted.has(p.id)} onClick={() => request(p.id)}>{accepted.has(p.id) ? 'Friends' : 'Add friend'}</button></div>)}</section>
     {requests.length > 0 && <section className="sv-card"><span className="sv-section-label">PENDING</span><h2>Friend requests</h2>{requests.map(r => <div className="sv-person-row" key={r.id}>{av(r.user)}<div className="sv-person-info"><strong>{nm(r.user)}</strong><small>@{r.user?.name}</small></div><button onClick={() => respond(r.id, 'accepted')}>Accept</button><button onClick={() => respond(r.id, 'declined')}>Decline</button></div>)}</section>}
-
     <section className="sv-friends-layout">
-      <div className="sv-card">
-        <span className="sv-section-label">YOUR STUDY CIRCLE</span>
-        <h2>{friends.length} friend{friends.length === 1 ? '' : 's'}</h2>
-        {friends.map(r => {
-          const p = r.user_id === uid ? r.friend : r.user
-          return <button className={`sv-person-row sv-friend-button ${selected?.id === p?.id ? 'selected' : ''}`} key={r.id} onClick={() => open(r)}>{av(p)}<div className="sv-person-info"><strong>{r.nickname || nm(p)}</strong><small>@{p?.name}</small></div><span>Chat →</span></button>
-        })}
-        {!friends.length && <div className="sv-empty-social">👥 Your study circle is empty</div>}
-      </div>
-
+      <div className="sv-card"><span className="sv-section-label">YOUR STUDY CIRCLE</span><h2>{friends.length} friend{friends.length === 1 ? '' : 's'}</h2>{friends.map(r => { const p = r.user_id === uid ? r.friend : r.user; return <button className={`sv-person-row sv-friend-button ${selected?.id === p?.id ? 'selected' : ''}`} key={r.id} onClick={() => open(r)}>{av(p)}<div className="sv-person-info"><strong>{r.nickname || nm(p)}</strong><small>@{p?.name}</small></div><span>Chat →</span></button> })}{!friends.length && <div className="sv-empty-social">👥 Your study circle is empty</div>}</div>
       {selected && <aside className="sv-chat-panel sv-card">
-        <div className="sv-chat-header">
-          {av(selected)}
-          <div><strong>{selected.nickname || nm(selected)}</strong><small>@{selected.name}</small></div>
-          <div className="sv-chat-header-menu">
-            <button aria-label="Chat options" title="Chat options" onClick={() => setChatMenu(v => !v)}><span className="sv-dots-icon"><i></i><i></i><i></i></span></button>
-            {chatMenu && <div className="sv-chat-header-menu-panel">
-              <button onClick={() => { setNickname(selected.nickname || ''); setChatMenu(false); setTimeout(() => document.getElementById('sv-nickname-dialog')?.showModal(), 0) }}>✏️ Nickname</button>
-              <button onClick={() => { setChatMenu(false); setSelected(null) }}>✕ Close chat</button>
-            </div>}
-          </div>
-        </div>
-
-        <dialog id="sv-nickname-dialog" className="sv-nickname-dialog">
-          <form method="dialog" onSubmit={e => { e.preventDefault(); saveNick(); document.getElementById('sv-nickname-dialog')?.close() }}>
-            <h3>Set nickname</h3>
-            <p>Choose how this friend appears in your StudyVerse chat.</p>
-            <input autoFocus value={nickname} onChange={e => setNickname(e.target.value)} placeholder="Nickname" />
-            <div><button type="button" onClick={() => document.getElementById('sv-nickname-dialog')?.close()}>Cancel</button><button type="submit">Save</button></div>
-          </form>
-        </dialog>
-
-        <div className="sv-messages">
-          {messages.filter(m => !hidden.has(m.id)).map(m => {
-            const att = attachmentFrom(m)
-            return <div className={`sv-message ${m.sender_id === uid ? 'mine' : ''}`} key={m.id}>
-              <div className="sv-message-bubble">
-                <small>{m.sender_id === uid ? 'You' : nm(selected)}</small>
-                {editing === m.id ? <div className="sv-inline-edit"><input value={editText} onChange={e => setEditText(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveEdit(m)} /><button onClick={() => saveEdit(m)}>Save</button></div> : <>
-                  {att ? <a className="sv-chat-attachment" href={att.url} target="_blank" rel="noreferrer">📎 {att.name || 'Open attachment'}</a> : <span>{m.body || m.message}</span>}
-                  <button className="sv-message-menu-button" aria-label="Message options" onClick={() => { setMenu(menu === m.id ? null : m.id); setDeleteMenu(null) }}><span className="sv-dots-icon"><i></i><i></i><i></i></span></button>
-                  {menu === m.id && <div className="sv-message-menu">
-                    {m.sender_id === uid && <button onClick={() => edit(m)}>Edit</button>}
-                    <button onClick={() => setDeleteMenu(deleteMenu === m.id ? null : m.id)}>Delete</button>
-                    {deleteMenu === m.id && <div className="sv-delete-submenu"><button onClick={() => deleteForMe(m)}>Delete for me</button>{m.sender_id === uid && <button onClick={() => deleteForEveryone(m)}>Delete for everyone</button>}</div>}
-                  </div>}
-                </>}
-              </div>
-            </div>
-          })}
-        </div>
-
-        <div className="sv-chat-tools">
-          <button title="Take photo" aria-label="Take photo" onClick={() => cameraRef.current?.click()}>📷</button>
-          <button title="Attach any file" aria-label="Attach any file" onClick={() => fileRef.current?.click()}>📎</button>
-          <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={e => upload(e.target.files?.[0])} />
-          <input ref={fileRef} type="file" hidden onChange={e => upload(e.target.files?.[0])} />
-          <input value={text} onChange={e => setText(e.target.value)} placeholder="Message..." onKeyDown={e => e.key === 'Enter' && send()} />
-          <button disabled={uploading || !text.trim()} onClick={() => send()}>{uploading ? 'Uploading…' : 'Send'}</button>
-        </div>
+        <div className="sv-chat-header">{av(selected)}<div><strong>{selected.nickname || nm(selected)}</strong><small>@{selected.name}</small></div><div className="sv-chat-header-menu"><button aria-label="Chat options" title="Chat options" onClick={() => setChatMenu(v => !v)}><span className="sv-dots-icon"><i></i><i></i><i></i></span></button>{chatMenu && <div className="sv-chat-header-menu-panel"><button onClick={() => { setNickname(selected.nickname || ''); setChatMenu(false); document.getElementById('sv-nickname-dialog')?.showModal() }}>✏️ Nickname</button><button onClick={() => { setChatMenu(false); setSelected(null) }}>✕ Close chat</button></div>}</div></div>
+        <dialog id="sv-nickname-dialog" className="sv-nickname-dialog"><form method="dialog" onSubmit={e => { e.preventDefault(); saveNick(); document.getElementById('sv-nickname-dialog')?.close() }}><h3>Set nickname</h3><p>Choose how this friend appears in your StudyVerse chat.</p><input autoFocus value={nickname} onChange={e => setNickname(e.target.value)} placeholder="Nickname" /><div><button type="button" onClick={() => document.getElementById('sv-nickname-dialog')?.close()}>Cancel</button><button type="submit">Save</button></div></form></dialog>
+        <div className="sv-messages">{messages.filter(m => !hidden.has(m.id)).map(m => { const att = attachmentFrom(m); return <div className={`sv-message ${m.sender_id === uid ? 'mine' : ''}`} key={m.id}><div className="sv-message-bubble"><small>{m.sender_id === uid ? 'You' : nm(selected)}</small>{editing === m.id ? <div className="sv-inline-edit"><input value={editText} onChange={e => setEditText(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveEdit(m)} /><button onClick={() => saveEdit(m)}>Save</button></div> : <>{att ? <a className="sv-chat-attachment" href={att.url} target="_blank" rel="noreferrer">📎 {att.name || 'Open attachment'}</a> : <span>{m.body || m.message}</span>}<button className="sv-message-menu-button" aria-label="Message options" onClick={() => { setMenu(menu === m.id ? null : m.id); setDeleteMenu(null) }}><span className="sv-dots-icon"><i></i><i></i><i></i></span></button>{menu === m.id && <div className="sv-message-menu">{m.sender_id === uid && <button onClick={() => edit(m)}>Edit</button>}<button onClick={() => setDeleteMenu(deleteMenu === m.id ? null : m.id)}>Delete</button>{deleteMenu === m.id && <div className="sv-delete-submenu"><button onClick={() => deleteForMe(m)}>Delete for me</button>{m.sender_id === uid && <button onClick={() => deleteForEveryone(m)}>Delete for everyone</button>}</div>}</div>}</>}</div></div> })}</div>
+        <div className="sv-chat-tools"><button title="Take photo" aria-label="Take photo" onClick={() => cameraRef.current?.click()}>📷</button><button title="Attach any file" aria-label="Attach any file" onClick={() => fileRef.current?.click()}>📎</button><input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={e => upload(e.target.files?.[0])} /><input ref={fileRef} type="file" hidden onChange={e => upload(e.target.files?.[0])} /><input value={text} onChange={e => setText(e.target.value)} placeholder="Message..." onKeyDown={e => e.key === 'Enter' && send()} /><button disabled={uploading || !text.trim()} onClick={() => send()}>{uploading ? 'Uploading…' : 'Send'}</button></div>
       </aside>}
     </section>
   </div>
