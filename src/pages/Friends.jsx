@@ -12,9 +12,6 @@ const av = (p) => p?.avatar_url
 
 const ATTACHMENT_PREFIX = '__SV_ATTACHMENT__'
 
-// The friendships table currently has one nickname column shared by both users.
-// Store a small per-user map in that column so Account A's nickname for B is
-// completely independent from Account B's nickname for A.
 function nicknameMap(raw) {
   if (!raw) return {}
   try {
@@ -26,7 +23,7 @@ function nicknameMap(raw) {
 
 function nicknameFor(row, uid) {
   const map = nicknameMap(row?.nickname)
-  return map[uid] || (map.__legacy && map.__legacy) || ''
+  return map[uid] || ''
 }
 
 function attachmentFrom(message) {
