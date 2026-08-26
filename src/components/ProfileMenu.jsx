@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 
+const SELECT = 'id,type,title,message,link,actor_id,metadata,is_read,created_at'
+
 export default function ProfileMenu() {
   const { user, signOut, refreshUser } = useAuth()
   const [open, setOpen] = useState(false)
@@ -29,26 +31,53 @@ export default function ProfileMenu() {
 
   useEffect(() => {
     if (!user?.id) return undefined
+    let active = true
     let channel
+
+    const mergeNotifications = rows => {
+      if (!active) return
+      setNotifications(prev => {
+        const map = new Map(prev.map(item => [item.id, item]))
+        ;(rows || []).forEach(item => map.set(item.id, item))
+        return [...map.values()]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          .slice(0, 50)
+      })
+    }
+
     async function load() {
       const { data, error } = await supabase
         .from('notifications')
-        .select('id,type,title,message,link,actor_id,metadata,is_read,created_at')
+        .select(SELECT)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50)
+      if (!active) return
       if (error) setNotificationError(error.message)
       else { setNotificationError(''); setNotifications(data || []) }
     }
+
     load()
-    channel = supabase.channel(`notifications-${user.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, payload => setNotifications(prev => [payload.new, ...prev.filter(x => x.id !== payload.new.id)].slice(0, 50)))
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, payload => setNotifications(prev => prev.map(x => x.id === payload.new.id ? payload.new : x)))
+
+    // Poll as a fallback for projects where Supabase Realtime is not enabled
+    // for the notifications table. This makes notifications reliable after
+    // navigation, tab switching, or when realtime publication is unavailable.
+    const poll = window.setInterval(load, 4000)
+
+    channel = supabase.channel(`notifications-${user.id}-${Date.now()}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, payload => mergeNotifications([payload.new]))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, payload => mergeNotifications([payload.new]))
       .subscribe()
-    return () => supabase.removeChannel(channel)
+
+    return () => {
+      active = false
+      window.clearInterval(poll)
+      if (channel) supabase.removeChannel(channel)
+    }
   }, [user?.id])
 
   if (!user) return null
+
   const name = profile.display_name || user.email?.split('@')[0] || 'StudyVerse member'
   const username = profile.username ? `@${profile.username}` : 'StudyVerse member'
   const avatar = profile.avatar_url
@@ -67,13 +96,6 @@ export default function ProfileMenu() {
       .eq('user_id', user.id)
     if (error) {
       setNotificationError(`Could not mark notification as read: ${error.message}`)
-      const { data } = await supabase
-        .from('notifications')
-        .select('id,type,title,message,link,actor_id,metadata,is_read,created_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(50)
-      if (data) setNotifications(data)
     }
   }
 
@@ -89,8 +111,6 @@ export default function ProfileMenu() {
 
   async function openNotifications() {
     setNotificationsOpen(true)
-    // Opening the notification center counts as viewing the notifications.
-    // This removes the numeric badge immediately and persists the state.
     if (unreadCount > 0) await markAllRead()
   }
 
