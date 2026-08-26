@@ -12,6 +12,23 @@ const av = (p) => p?.avatar_url
 
 const ATTACHMENT_PREFIX = '__SV_ATTACHMENT__'
 
+// The friendships table currently has one nickname column shared by both users.
+// Store a small per-user map in that column so Account A's nickname for B is
+// completely independent from Account B's nickname for A.
+function nicknameMap(raw) {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed
+  } catch {}
+  return { __legacy: raw }
+}
+
+function nicknameFor(row, uid) {
+  const map = nicknameMap(row?.nickname)
+  return map[uid] || (map.__legacy && map.__legacy) || ''
+}
+
 function attachmentFrom(message) {
   const raw = message?.body || message?.message || ''
   if (!raw.startsWith(ATTACHMENT_PREFIX)) return null
@@ -99,8 +116,9 @@ export default function Friends() {
   async function open(row) {
     const p = row.user_id === uid ? row.friend : row.user
     if (!p) return
-    setSelected({ ...p, friendshipId: row.id, nickname: row.nickname || '' })
-    setNickname(row.nickname || '')
+    const myNickname = nicknameFor(row, uid)
+    setSelected({ ...p, friendshipId: row.id, nickname: myNickname })
+    setNickname(myNickname)
     setMenu(null); setDeleteMenu(null); setChatMenu(false)
     const { data, error } = await supabase.from('direct_messages').select('*').or(`and(sender_id.eq.${uid},recipient_id.eq.${p.id}),and(sender_id.eq.${p.id},recipient_id.eq.${uid})`).order('created_at')
     if (error) setNotice(error.message); else setMessages(data || [])
@@ -169,11 +187,18 @@ export default function Friends() {
   }
 
   async function saveNick() {
-    if (!selected) return
-    const value = nickname.trim() || null
-    const { error } = await supabase.from('friendships').update({ nickname: value }).eq('id', selected.friendshipId)
-    if (error) { setNotice(error.message); return }
-    setSelected(s => s ? { ...s, nickname: value || '' } : s)
+    if (!selected || !uid) return
+    const value = nickname.trim()
+    const { data: row, error: readError } = await supabase.from('friendships').select('nickname').eq('id', selected.friendshipId).maybeSingle()
+    if (readError) { setNotice(`Nickname could not be loaded: ${readError.message}`); return }
+    const map = nicknameMap(row?.nickname)
+    if (value) map[uid] = value
+    else delete map[uid]
+    delete map.__legacy
+    const next = Object.keys(map).length ? JSON.stringify(map) : null
+    const { error } = await supabase.from('friendships').update({ nickname: next }).eq('id', selected.friendshipId)
+    if (error) { setNotice(`Nickname could not be saved: ${error.message}`); return }
+    setSelected(s => s ? { ...s, nickname: value } : s)
     setChatMenu(false)
     load()
   }
@@ -186,7 +211,7 @@ export default function Friends() {
     <section className="sv-social-search sv-card"><span className="sv-section-label">FIND STUDY PARTNERS</span><h2>Search by name or username</h2><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or username" />{results.map(p => <div className="sv-person-row" key={p.id}>{av(p)}<div className="sv-person-info"><strong>{nm(p)}</strong><small>@{p.name}</small></div><button disabled={accepted.has(p.id)} onClick={() => request(p.id)}>{accepted.has(p.id) ? 'Friends' : 'Add friend'}</button></div>)}</section>
     {requests.length > 0 && <section className="sv-card"><span className="sv-section-label">PENDING</span><h2>Friend requests</h2>{requests.map(r => <div className="sv-person-row" key={r.id}>{av(r.user)}<div className="sv-person-info"><strong>{nm(r.user)}</strong><small>@{r.user?.name}</small></div><button onClick={() => respond(r.id, 'accepted')}>Accept</button><button onClick={() => respond(r.id, 'declined')}>Decline</button></div>)}</section>}
     <section className="sv-friends-layout">
-      <div className="sv-card"><span className="sv-section-label">YOUR STUDY CIRCLE</span><h2>{friends.length} friend{friends.length === 1 ? '' : 's'}</h2>{friends.map(r => { const p = r.user_id === uid ? r.friend : r.user; return <button className={`sv-person-row sv-friend-button ${selected?.id === p?.id ? 'selected' : ''}`} key={r.id} onClick={() => open(r)}>{av(p)}<div className="sv-person-info"><strong>{r.nickname || nm(p)}</strong><small>@{p?.name}</small></div><span>Chat →</span></button> })}{!friends.length && <div className="sv-empty-social">👥 Your study circle is empty</div>}</div>
+      <div className="sv-card"><span className="sv-section-label">YOUR STUDY CIRCLE</span><h2>{friends.length} friend{friends.length === 1 ? '' : 's'}</h2>{friends.map(r => { const p = r.user_id === uid ? r.friend : r.user; const myNickname = nicknameFor(r, uid); return <button className={`sv-person-row sv-friend-button ${selected?.id === p?.id ? 'selected' : ''}`} key={r.id} onClick={() => open(r)}>{av(p)}<div className="sv-person-info"><strong>{myNickname || nm(p)}</strong><small>@{p?.name}</small></div><span>Chat →</span></button> })}{!friends.length && <div className="sv-empty-social">👥 Your study circle is empty</div>}</div>
       {selected && <aside className="sv-chat-panel sv-card">
         <div className="sv-chat-header">{av(selected)}<div><strong>{selected.nickname || nm(selected)}</strong><small>@{selected.name}</small></div><div className="sv-chat-header-menu"><button aria-label="Chat options" title="Chat options" onClick={() => setChatMenu(v => !v)}><span className="sv-dots-icon"><i></i><i></i><i></i></span></button>{chatMenu && <div className="sv-chat-header-menu-panel"><button onClick={() => { setNickname(selected.nickname || ''); setChatMenu(false); document.getElementById('sv-nickname-dialog')?.showModal() }}>✏️ Nickname</button><button onClick={() => { setChatMenu(false); setSelected(null) }}>✕ Close chat</button></div>}</div></div>
         <dialog id="sv-nickname-dialog" className="sv-nickname-dialog"><form method="dialog" onSubmit={e => { e.preventDefault(); saveNick(); document.getElementById('sv-nickname-dialog')?.close() }}><h3>Set nickname</h3><p>Choose how this friend appears in your StudyVerse chat.</p><input autoFocus value={nickname} onChange={e => setNickname(e.target.value)} placeholder="Nickname" /><div><button type="button" onClick={() => document.getElementById('sv-nickname-dialog')?.close()}>Cancel</button><button type="submit">Save</button></div></form></dialog>
