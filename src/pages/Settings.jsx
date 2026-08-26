@@ -13,26 +13,10 @@ export default function Settings(){
  useEffect(()=>{if(section==='room_history'&&user)fetchRoomHistory()},[section,user?.id])
  async function fetchRoomHistory(){setRoomsLoading(true);setError('');const {data,error:fetchError}=await supabase.from('room_history').select('*').eq('host_id',user.id).order('created_at',{ascending:false});if(fetchError)setError(`Room history could not be loaded: ${fetchError.message}`);setRooms(data||[]);setRoomsLoading(false)}
  function selectSection(value){setSection(value);setParams({section:value});setMessage('');setError('')}
- async function saveProfile(event){
-  event.preventDefault();setSaving(true);setMessage('');setError('')
-  let avatar_url=user.user_metadata?.avatar_url||''
-  if(avatarFile){const ext=avatarFile.name.split('.').pop()||'jpg',path=`${user.id}/profile-${Date.now()}.${ext}`;const {error:uploadError}=await supabase.storage.from('avatars').upload(path,avatarFile,{upsert:true});if(uploadError){setError(`Profile picture could not be uploaded: ${uploadError.message}`);setSaving(false);return}const {data}=supabase.storage.from('avatars').getPublicUrl(path);avatar_url=data.publicUrl}
-  const {error:updateError}=await supabase.auth.updateUser({data:{...form,avatar_url}})
-  if(updateError){setError(updateError.message);setSaving(false);return}
-
-  // Keep the public profile directory in sync with the editable profile.
-  // The current profiles table uses name/avatar_url/avatar_emoji/bio/display_name.
-  const {error:profileError}=await supabase.from('profiles').upsert({
-   id:user.id,
-   name:form.username || form.display_name || user.email?.split('@')[0] || 'student',
-   display_name:form.display_name || form.username || user.email?.split('@')[0] || 'StudyVerse member',
-   bio:form.bio || null,
-   avatar_emoji:form.emoji_avatar || '👤',
-   avatar_url:avatar_url || null,
-  },{onConflict:'id'})
-  if(profileError){setError(`Profile directory could not be updated: ${profileError.message}`);setSaving(false);return}
-
-  const freshUser=await refreshUser();if(freshUser?.user_metadata){const m=freshUser.user_metadata;setForm({display_name:m.display_name||freshUser.email?.split('@')[0]||'',username:m.username||'',bio:m.bio||'',study_goal:m.study_goal||'',emoji_avatar:m.emoji_avatar||'👤',status:m.status||'Available',age_group:m.age_group||''})}setMessage('Profile saved successfully.');setAvatarFile(null);setSaving(false)
+ async function saveProfile(event){event.preventDefault();setSaving(true);setMessage('');setError('');let avatar_url=user.user_metadata?.avatar_url||'';if(avatarFile){const ext=avatarFile.name.split('.').pop()||'jpg',path=`${user.id}/profile-${Date.now()}.${ext}`;const {error:uploadError}=await supabase.storage.from('avatars').upload(path,avatarFile,{upsert:true});if(uploadError){setError(`Profile picture could not be uploaded: ${uploadError.message}`);setSaving(false);return}const {data}=supabase.storage.from('avatars').getPublicUrl(path);avatar_url=data.publicUrl}
+  const {error:updateError}=await supabase.auth.updateUser({data:{...form,avatar_url}});if(updateError){setError(updateError.message);setSaving(false);return}
+  const {error:profileError}=await supabase.from('profiles').upsert({id:user.id,name:form.username||form.display_name||user.email?.split('@')[0]||'student',display_name:form.display_name||form.username||user.email?.split('@')[0]||'StudyVerse member',bio:form.bio||null,avatar_emoji:form.emoji_avatar||'👤',avatar_url:avatar_url||null},{onConflict:'id'});if(profileError){setError(`Profile directory could not be updated: ${profileError.message}`);setSaving(false);return}
+  const freshUser=await refreshUser();if(freshUser?.user_metadata){const m=freshUser.user_metadata;setForm({display_name:m.display_name||freshUser.email?.split('@')[0]||'',username:m.username||'',bio:m.bio||'',study_goal:m.study_goal||'',emoji_avatar:m.emoji_avatar||'👤',status:m.status||'Available',age_group:m.age_group||''})}window.dispatchEvent(new CustomEvent('studyverse-profile-updated',{detail:freshUser}));setMessage('Profile saved successfully.');setAvatarFile(null);setSaving(false)
  }
  async function savePreference(key,value){const {error:updateError}=await supabase.auth.updateUser({data:{[key]:value}});if(updateError)setError(updateError.message);else{await refreshUser();setMessage('Preference saved.')}}
  async function changeTheme(id){setTheme(id);document.documentElement.dataset.theme=id;localStorage.setItem('studyverse-theme',id);const {error:updateError}=await supabase.auth.updateUser({data:{appearance:id,study_experience:id}});if(updateError)setError(updateError.message);else{await refreshUser();setMessage(`${themes.find(t=>t.id===id)?.name} appearance applied.`)}}
