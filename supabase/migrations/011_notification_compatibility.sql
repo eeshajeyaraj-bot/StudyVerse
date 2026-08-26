@@ -16,11 +16,17 @@ CREATE TRIGGER notifications_text_sync BEFORE INSERT OR UPDATE ON public.notific
 FOR EACH ROW EXECUTE FUNCTION public.sync_notification_text();
 
 -- Mirror completed room sessions into the streak/history table used by the UI.
+-- A concise deterministic summary is generated when a session ends.
 CREATE OR REPLACE FUNCTION public.mirror_room_session_to_study_session()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+declare minutes integer;
+subject_name text;
 begin
-  insert into public.study_sessions(user_id, room_id, subject, started_at, ended_at, duration_seconds)
-  values (new.user_id, new.room_id, coalesce(new.subject, 'General Study'), new.started_at, new.ended_at, coalesce(new.duration_seconds, 0));
+  minutes := greatest(1, floor(coalesce(new.duration_seconds, 0) / 60.0));
+  subject_name := coalesce(nullif(new.subject, ''), 'General Study');
+  insert into public.study_sessions(user_id, room_id, subject, started_at, ended_at, duration_seconds, summary)
+  values (new.user_id, new.room_id, subject_name, new.started_at, new.ended_at, coalesce(new.duration_seconds, 0),
+    format('Completed a %s-minute %s study session.', minutes, subject_name));
   return new;
 end;
 $$;
