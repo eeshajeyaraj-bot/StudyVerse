@@ -10,13 +10,9 @@
 .sv-nickname-dialog form>div{display:flex;justify-content:flex-end;gap:7px;margin-top:14px}
 .sv-nickname-dialog form button{min-height:38px!important;padding:8px 13px!important;border-radius:9px!important;border:1px solid #d9cec4!important;background:#f3ebe3!important;color:#51453d!important;box-shadow:none!important;transform:none!important}
 .sv-nickname-dialog form button[type="submit"]{background:#80624d!important;border-color:#80624d!important;color:#fff!important}
-
-/* Keep the three-dot header control at the true top-right of the chat header */
 .sv-chat-header{position:relative!important}
 .sv-chat-header-menu{margin-left:auto!important;position:relative!important;flex:0 0 auto!important}
 .sv-chat-header-menu>button{width:40px!important;height:40px!important;min-height:40px!important;border-radius:10px!important}
-
-/* More elegant message area and composer */
 .sv-messages{background:#fcfaf6!important;background-image:radial-gradient(rgba(139,92,246,.035) 1px,transparent 1px)!important;background-size:22px 22px!important}
 .sv-message-bubble{box-shadow:0 2px 8px rgba(80,60,40,.035)!important}
 .sv-message.mine .sv-message-bubble{background:#f0e5dc!important;border-color:#dfd2c7!important}
@@ -25,66 +21,52 @@
 .sv-chat-tools>button:first-child,.sv-chat-tools>button:nth-child(2){flex:0 0 40px!important}
 .sv-chat-tools>input:not([type="file"]){height:40px!important}
 .sv-chat-tools>button:last-child{flex:0 0 auto!important}
-
-/* Room chat follows the same visual rhythm */
 .sv-room-chat-shell{box-shadow:0 10px 32px rgba(80,60,40,.08)!important}
 .sv-room-chat-shell .sv-room-chat-messages{background:#fcfaf6!important;background-image:radial-gradient(rgba(139,92,246,.035) 1px,transparent 1px)!important;background-size:22px 22px!important}
-
-@media(max-width:600px){
-  .sv-nickname-dialog{width:calc(100vw - 28px)!important}
-}
-
-/* Chat spacing fix: the scrollable conversation must stretch all the way to the composer. */
-.sv-chat-panel .sv-messages{
-  height:auto!important;
-  min-height:0!important;
-  align-self:stretch!important;
-  flex:1 1 auto!important;
-}
-.sv-chat-panel .sv-chat-tools{
-  align-self:stretch!important;
-  margin:0!important;
-}
-
-/* Normal chat typography: readable text, clean bubbles, no cramped message text. */
-.sv-chat-panel .sv-message-bubble{
-  font-size:15px!important;
-  line-height:1.45!important;
-  font-weight:400!important;
-  letter-spacing:0!important;
-  padding:10px 14px!important;
-  border-radius:14px!important;
-}
-.sv-chat-panel .sv-message-bubble>small{
-  font-size:11px!important;
-  line-height:1.2!important;
-  margin-bottom:5px!important;
-  font-weight:600!important;
-}
+@media(max-width:600px){.sv-nickname-dialog{width:calc(100vw - 28px)!important}}
+.sv-chat-panel .sv-messages{height:auto!important;min-height:0!important;align-self:stretch!important;flex:1 1 auto!important}
+.sv-chat-panel .sv-chat-tools{align-self:stretch!important;margin:0!important}
+.sv-chat-panel .sv-message-bubble{font-size:15px!important;line-height:1.45!important;font-weight:400!important;letter-spacing:0!important;padding:10px 14px!important;border-radius:14px!important}
+.sv-chat-panel .sv-message-bubble>small{font-size:11px!important;line-height:1.2!important;margin-bottom:5px!important;font-weight:600!important}
 .sv-chat-panel .sv-message-bubble>span{display:inline-block!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important}
 .sv-chat-panel .sv-messages{gap:12px!important;padding:18px 18px 12px!important}
-
-/* Room chat gets exactly the same spacing and readable message treatment. */
-.sv-room-chat-shell .sv-room-chat-messages{
-  height:auto!important;
-  min-height:0!important;
-  align-self:stretch!important;
-  flex:1 1 auto!important;
-  padding:18px 18px 12px!important;
-}
+.sv-room-chat-shell .sv-room-chat-messages{height:auto!important;min-height:0!important;align-self:stretch!important;flex:1 1 auto!important;padding:18px 18px 12px!important}
 .sv-room-chat-shell .sv-room-message-row{margin:7px 0!important}
-.sv-room-chat-shell .sv-room-message-bubble{
-  font-size:15px!important;
-  line-height:1.45!important;
-  font-weight:400!important;
-  letter-spacing:0!important;
-  padding:10px 14px!important;
-  border-radius:14px!important;
-}
-.sv-room-chat-shell .sv-room-message-bubble small{
-  font-size:11px!important;
-  line-height:1.2!important;
-  margin-bottom:5px!important;
-}
+.sv-room-chat-shell .sv-room-message-bubble{font-size:15px!important;line-height:1.45!important;font-weight:400!important;letter-spacing:0!important;padding:10px 14px!important;border-radius:14px!important}
+.sv-room-chat-shell .sv-room-message-bubble small{font-size:11px!important;line-height:1.2!important;margin-bottom:5px!important}
 .sv-room-chat-shell .sv-room-message-bubble>div{white-space:pre-wrap!important;overflow-wrap:anywhere!important}
 .sv-room-chat-shell .sv-room-composer{margin:0!important;align-self:stretch!important}
+
+/* Tight chat layout: the conversation fills the panel and the composer touches its bottom edge. */
+.sv-chat-panel{display:flex!important;flex-direction:column!important;min-height:0!important}
+.sv-chat-panel .sv-chat-header{flex:0 0 auto!important}
+.sv-chat-panel .sv-messages{flex:1 1 auto!important;min-height:0!important;height:auto!important;overflow-y:auto!important}
+.sv-chat-panel .sv-chat-tools{flex:0 0 auto!important;margin:0!important}
+.sv-room-chat-shell{display:flex!important;flex-direction:column!important;min-height:0!important}
+.sv-room-chat-shell .sv-room-chat-messages{flex:1 1 auto!important;min-height:0!important;height:auto!important;overflow-y:auto!important}
+.sv-room-chat-shell .sv-room-composer{flex:0 0 auto!important;margin:0!important}
+
+/* Voice recording */
+.sv-voice-button{min-width:40px!important;white-space:nowrap!important}
+.sv-voice-button.is-recording{background:#f7e0dc!important;border-color:#d77b6d!important;color:#9b3f31!important;font-weight:700!important}
+
+/* Inline media stays in the chat. */
+.sv-chat-attachment.sv-inline-image,.sv-chat-attachment.sv-inline-video,.sv-chat-attachment.sv-inline-audio{display:block!important;text-decoration:none!important;padding:0!important;border:0!important;background:transparent!important;max-width:min(320px,70vw)!important}
+.sv-chat-attachment.sv-inline-image img{display:block!important;width:auto!important;max-width:100%!important;max-height:260px!important;border-radius:12px!important;object-fit:cover!important;cursor:zoom-in!important}
+.sv-chat-attachment.sv-inline-video video{display:block!important;width:min(320px,70vw)!important;max-width:100%!important;max-height:260px!important;border-radius:12px!important;background:#171717!important}
+.sv-chat-attachment.sv-inline-audio audio{width:min(320px,70vw)!important;max-width:100%!important}
+.sv-media-lightbox{position:fixed!important;inset:0!important;z-index:5000!important;display:grid!important;place-items:center!important;background:rgba(20,15,12,.72)!important;padding:24px!important}
+.sv-media-lightbox-card{position:relative!important;max-width:min(1100px,95vw)!important;max-height:92vh!important;padding:12px!important;border-radius:16px!important;background:#fffdf9!important;box-shadow:0 30px 90px rgba(0,0,0,.35)!important}
+.sv-media-lightbox-content img,.sv-media-lightbox-content video{display:block!important;max-width:90vw!important;max-height:82vh!important;border-radius:10px!important}
+.sv-media-lightbox-close{position:absolute!important;right:8px!important;top:8px!important;z-index:2!important;width:34px!important;height:34px!important;border-radius:50%!important;border:0!important;background:rgba(30,25,22,.75)!important;color:#fff!important;font-size:22px!important;line-height:1!important}
+
+/* Camera capture dialog */
+.sv-camera-dialog{border:0!important;padding:0!important;border-radius:18px!important;background:transparent!important;max-width:min(760px,94vw)!important;width:min(760px,94vw)!important}
+.sv-camera-dialog::backdrop{background:rgba(20,15,12,.72)!important;backdrop-filter:blur(3px)!important}
+.sv-camera-card{padding:14px!important;border-radius:18px!important;background:#fffdf9!important;box-shadow:0 30px 90px rgba(0,0,0,.35)!important}
+.sv-camera-title{display:flex!important;align-items:center!important;justify-content:space-between!important;margin-bottom:10px!important}
+.sv-camera-close{width:34px!important;height:34px!important;border-radius:50%!important;border:1px solid #ddd2c8!important;background:#f3ebe3!important;font-size:22px!important}
+.sv-camera-card video{display:block!important;width:100%!important;max-height:70vh!important;border-radius:12px!important;background:#171717!important;object-fit:contain!important}
+.sv-camera-actions{display:flex!important;justify-content:flex-end!important;gap:8px!important;margin-top:12px!important}
+.sv-camera-actions button{min-height:40px!important;padding:8px 14px!important;border-radius:10px!important}
+.sv-camera-capture{background:#80624d!important;color:#fff!important;border-color:#80624d!important}
