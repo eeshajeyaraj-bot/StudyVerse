@@ -33,3 +33,58 @@
 @media(max-width:600px){
   .sv-nickname-dialog{width:calc(100vw - 28px)!important}
 }
+
+/* Chat spacing fix: the scrollable conversation must stretch all the way to the composer. */
+.sv-chat-panel .sv-messages{
+  height:auto!important;
+  min-height:0!important;
+  align-self:stretch!important;
+  flex:1 1 auto!important;
+}
+.sv-chat-panel .sv-chat-tools{
+  align-self:stretch!important;
+  margin:0!important;
+}
+
+/* Normal chat typography: readable text, clean bubbles, no cramped message text. */
+.sv-chat-panel .sv-message-bubble{
+  font-size:15px!important;
+  line-height:1.45!important;
+  font-weight:400!important;
+  letter-spacing:0!important;
+  padding:10px 14px!important;
+  border-radius:14px!important;
+}
+.sv-chat-panel .sv-message-bubble>small{
+  font-size:11px!important;
+  line-height:1.2!important;
+  margin-bottom:5px!important;
+  font-weight:600!important;
+}
+.sv-chat-panel .sv-message-bubble>span{display:inline-block!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important}
+.sv-chat-panel .sv-messages{gap:12px!important;padding:18px 18px 12px!important}
+
+/* Room chat gets exactly the same spacing and readable message treatment. */
+.sv-room-chat-shell .sv-room-chat-messages{
+  height:auto!important;
+  min-height:0!important;
+  align-self:stretch!important;
+  flex:1 1 auto!important;
+  padding:18px 18px 12px!important;
+}
+.sv-room-chat-shell .sv-room-message-row{margin:7px 0!important}
+.sv-room-chat-shell .sv-room-message-bubble{
+  font-size:15px!important;
+  line-height:1.45!important;
+  font-weight:400!important;
+  letter-spacing:0!important;
+  padding:10px 14px!important;
+  border-radius:14px!important;
+}
+.sv-room-chat-shell .sv-room-message-bubble small{
+  font-size:11px!important;
+  line-height:1.2!important;
+  margin-bottom:5px!important;
+}
+.sv-room-chat-shell .sv-room-message-bubble>div{white-space:pre-wrap!important;overflow-wrap:anywhere!important}
+.sv-room-chat-shell .sv-room-composer{margin:0!important;align-self:stretch!important}
