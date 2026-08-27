@@ -25,23 +25,24 @@ export default function RoomStudyTools({ roomId, userId, typing = false }) {
         supabase.from('room_messages').select('*').eq('room_id', roomId).order('created_at').limit(500),
         supabase.from('room_pins').select('*').eq('room_id', roomId).order('created_at', { ascending: false }),
         supabase.from('room_resources').select('*').eq('room_id', roomId).order('created_at', { ascending: false }),
-        supabase.from('study_sessions').select('started_at').eq('user_id', userId).gte('started_at', new Date(Date.now() - 7 * 86400000).toISOString()),
+        // The existing Supabase schema uses start_time, not started_at.
+        supabase.from('study_sessions').select('start_time').eq('user_id', userId).gte('start_time', new Date(Date.now() - 7 * 86400000).toISOString()),
       ])
       if (!active) return
       if (m.error) console.warn('Room study message search unavailable', m.error)
-      if (p.error) console.warn('Pinned resources unavailable. Run the StudyVerse room migration if needed.', p.error)
-      if (r.error) console.warn('Shared resources unavailable. Run the StudyVerse room migration if needed.', r.error)
-      if (s.error) console.warn('Study session history unavailable. Run the StudyVerse room migration if needed.', s.error)
+      if (p.error) console.warn('Pinned resources unavailable', p.error)
+      if (r.error) console.warn('Shared resources unavailable', r.error)
+      if (s.error) console.warn('Study session history unavailable', s.error)
       setMessages(m.data || [])
       setPins(p.data || [])
       setResources(r.data || [])
       if (!s.error) {
-        setStreak(new Set((s.data || []).map(x => new Date(x.started_at).toISOString().slice(0, 10))).size)
+        setStreak(new Set((s.data || []).map(x => new Date(x.start_time).toISOString().slice(0, 10))).size)
       } else {
         setStreak(0)
       }
       const missing = [p.error && 'pinned resources', r.error && 'shared resources', s.error && 'study history'].filter(Boolean)
-      setError(missing.length ? `Some study tools need the latest Supabase migration: ${missing.join(', ')}.` : '')
+      setError(missing.length ? `Some study tools are unavailable: ${missing.join(', ')}.` : '')
     }
     load()
     const channel = supabase
