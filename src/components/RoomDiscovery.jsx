@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-export default function RoomDiscovery() {
+export default function RoomDiscovery({ onJoined }) {
   const [rooms, setRooms] = useState([])
   const [subject, setSubject] = useState('All')
   const [loading, setLoading] = useState(true)
@@ -12,6 +12,7 @@ export default function RoomDiscovery() {
     setLoading(true)
     const { data, error } = await supabase.from('study_rooms').select('id,room_name,room_code,subject,description,max_members,room_members(count)').eq('is_active', true).order('created_at', { ascending: false }).limit(50)
     if (error) setMessage(`Room discovery needs the latest Supabase migration: ${error.message}`)
+    else setMessage('')
     setRooms(data || []); setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -24,7 +25,10 @@ export default function RoomDiscovery() {
     if (count >= room.max_members) { setMessage('That room is full.'); setJoining(''); return }
     const { error } = await supabase.from('room_members').upsert({ room_id: room.id, user_id: uid, display_name: auth.user.user_metadata?.display_name || auth.user.email?.split('@')[0] || 'StudyVerse member', status: 'studying' }, { onConflict: 'room_id,user_id' })
     if (error) setMessage(error.message)
-    else { localStorage.setItem(`studyverse_active_room_${uid}`, room.id); window.location.reload() }
+    else {
+      localStorage.setItem(`studyverse_active_room_${uid}`, room.id)
+      onJoined?.(room.id)
+    }
     setJoining('')
   }
 
