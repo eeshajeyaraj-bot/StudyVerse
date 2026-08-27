@@ -1,5 +1,22 @@
 -- StudyVerse RLS hardening
--- These policies are intentionally scoped to authenticated users and owner/participant relationships.
+-- Repeat-safe so it can be applied after an earlier manual policy rollout.
+
+do $$ begin
+  drop policy if exists activity_feed_select_own on public.activity_feed;
+  drop policy if exists activity_feed_insert_own on public.activity_feed;
+  drop policy if exists friend_requests_select_participants on public.friend_requests;
+  drop policy if exists friend_requests_insert_sender on public.friend_requests;
+  drop policy if exists friend_requests_update_participants on public.friend_requests;
+  drop policy if exists friend_requests_delete_participants on public.friend_requests;
+  drop policy if exists room_files_select_member on public.room_files;
+  drop policy if exists room_files_insert_member on public.room_files;
+  drop policy if exists room_files_update_owner on public.room_files;
+  drop policy if exists room_files_delete_owner on public.room_files;
+  drop policy if exists study_status_select_own on public.study_status;
+  drop policy if exists study_status_insert_own on public.study_status;
+  drop policy if exists study_status_update_own on public.study_status;
+  drop policy if exists study_status_delete_own on public.study_status;
+end $$;
 
 create policy activity_feed_select_own on public.activity_feed for select to authenticated using (user_id = auth.uid());
 create policy activity_feed_insert_own on public.activity_feed for insert to authenticated with check (user_id = auth.uid());
