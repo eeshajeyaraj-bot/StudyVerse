@@ -1,39 +1,41 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTimer } from '../context/TimerContext'
 import { supabase } from '../lib/supabase'
 
 const subjectCss = `
-.sv-subject-hero{position:relative;overflow:hidden;padding:25px;background:linear-gradient(115deg,rgba(124,58,237,.19),rgba(236,72,153,.07) 58%,rgba(255,255,255,.025));border-color:rgba(192,132,252,.3)}
-.sv-subject-hero:after{content:"";position:absolute;width:190px;height:190px;right:-55px;top:-100px;border-radius:50%;background:rgba(168,85,247,.16);filter:blur(8px);pointer-events:none}
+.sv-subject-hero{position:relative;overflow:hidden;padding:25px;background:linear-gradient(115deg,color-mix(in srgb,var(--purple-main) 16%,var(--bg-card)),color-mix(in srgb,var(--pink) 7%,var(--bg-card)) 58%,var(--bg-card));border-color:var(--border-bright)}
+.sv-subject-hero:after{content:"";position:absolute;width:190px;height:190px;right:-55px;top:-100px;border-radius:50%;background:color-mix(in srgb,var(--purple-main) 16%,transparent);filter:blur(8px);pointer-events:none}
 .sv-subject-hero-inner{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:center;gap:22px;flex-wrap:wrap}
 .sv-subject-hero h1{font-size:clamp(25px,3vw,34px);line-height:1.15;letter-spacing:-.8px;margin:5px 0 9px}
 .sv-subject-hero-copy{max-width:680px;color:var(--text-muted);font-size:13px;line-height:1.7}
-.sv-subject-count{width:116px;height:116px;display:grid;place-content:center;text-align:center;flex:0 0 auto;border-radius:25px;border:1px solid rgba(216,180,254,.32);background:linear-gradient(145deg,rgba(168,85,247,.18),rgba(255,255,255,.035));box-shadow:inset 0 1px rgba(255,255,255,.08)}
+.sv-subject-count{width:116px;height:116px;display:grid;place-content:center;text-align:center;flex:0 0 auto;border-radius:25px;border:1px solid var(--border-bright);background:linear-gradient(145deg,color-mix(in srgb,var(--purple-main) 16%,var(--bg-card)),var(--bg-card));box-shadow:inset 0 1px rgba(255,255,255,.08)}
 .sv-subject-count strong{font-size:34px;line-height:1.1;color:var(--purple-light)}.sv-subject-count span{font-size:12px;color:var(--text-muted);margin-top:5px}
 .sv-subject-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 20px}
-.sv-subject-summary-card{display:flex;align-items:center;gap:13px;padding:16px;margin:0;min-width:0;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018))}
-.sv-subject-summary-icon{width:42px;height:42px;display:grid;place-items:center;flex:0 0 42px;border-radius:13px;background:rgba(168,85,247,.14);font-size:20px}
+.sv-subject-summary-card{display:flex;align-items:center;gap:13px;padding:16px;margin:0;min-width:0;background:linear-gradient(145deg,color-mix(in srgb,var(--purple-main) 5%,var(--bg-card)),var(--bg-card))}
+.sv-subject-summary-icon{width:42px;height:42px;display:grid;place-items:center;flex:0 0 42px;border-radius:13px;background:color-mix(in srgb,var(--purple-main) 13%,var(--bg-card));font-size:20px}
 .sv-subject-summary-card strong{display:block;font-size:21px;line-height:1.2}.sv-subject-summary-card small{display:block;margin-top:4px;color:var(--text-muted);font-size:11px}
-.sv-subject-form{border-color:rgba(192,132,252,.22)}.sv-subject-form-row{display:grid;grid-template-columns:minmax(0,1fr) 150px auto;gap:10px;margin-top:13px;align-items:center}
+.sv-subject-form{border-color:var(--border)}.sv-subject-form-row{display:grid;grid-template-columns:minmax(0,1fr) 150px auto;gap:10px;margin-top:13px;align-items:center}
 .sv-subject-tools{display:grid;grid-template-columns:minmax(200px,1fr) minmax(140px,170px) minmax(140px,170px);gap:10px;align-items:center}
 .sv-subject-toggle{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}
 .sv-subject-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,265px),1fr));gap:14px}
-.sv-subject-card{position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;min-height:220px;margin:0;padding:19px;background:linear-gradient(155deg,rgba(168,85,247,.075),rgba(255,255,255,.025) 55%);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
-.sv-subject-card:before{content:"";position:absolute;z-index:-1;top:0;left:18px;right:18px;height:2px;border-radius:0 0 6px 6px;background:linear-gradient(90deg,#7c3aed,#f0abfc);opacity:.75}
-.sv-subject-card:hover{transform:translateY(-3px);border-color:rgba(192,132,252,.42);box-shadow:0 15px 35px rgba(0,0,0,.18)}
+.sv-subject-card{position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;min-height:220px;margin:0;padding:19px;background:linear-gradient(155deg,color-mix(in srgb,var(--purple-main) 7%,var(--bg-card)),var(--bg-card) 65%);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.sv-subject-card:before{content:"";position:absolute;z-index:-1;top:0;left:18px;right:18px;height:2px;border-radius:0 0 6px 6px;background:linear-gradient(90deg,var(--purple-main),var(--pink));opacity:.75}
+.sv-subject-card:hover{transform:translateY(-3px);border-color:var(--border-bright);box-shadow:0 15px 35px rgba(0,0,0,.18)}
 .sv-subject-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.sv-subject-title{display:flex;align-items:center;gap:7px;min-width:0}.sv-subject-title h3{font-size:17px;overflow-wrap:anywhere}
 .sv-subject-star{border:0!important;background:transparent!important;padding:2px!important;min-height:28px!important;font-size:18px!important;box-shadow:none!important}.sv-subject-star:hover{transform:scale(1.08)!important;box-shadow:none!important}
-.sv-subject-goal{display:inline-flex;align-items:center;gap:5px;margin-top:7px;padding:4px 8px;border-radius:7px;background:rgba(168,85,247,.1);color:var(--text-muted);font-size:11px}
+.sv-subject-goal{display:inline-flex;align-items:center;gap:5px;margin-top:7px;padding:4px 8px;border-radius:7px;background:color-mix(in srgb,var(--purple-main) 10%,var(--bg-card));color:var(--text-muted);font-size:11px}
 .sv-subject-progress{margin-top:23px}.sv-subject-progress-row{display:flex;justify-content:space-between;gap:8px;color:var(--text-muted);font-size:12px;margin-bottom:8px}.sv-subject-progress-row strong{color:var(--purple-light)}
-.sv-subject-card .sv-progress-bg{height:8px;margin-top:0;background:rgba(255,255,255,.08)}.sv-subject-card .sv-progress-fill{background:linear-gradient(90deg,#7c3aed,#c084fc,#f0abfc);transition:width .35s ease}
-.sv-subject-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:auto;padding-top:15px}.sv-subject-actions small{color:var(--text-muted);font-size:11px}.sv-subject-remove{min-height:31px!important;padding:5px 9px!important;font-size:11px!important;background:rgba(255,255,255,.035)!important}
-.sv-subject-empty{grid-column:1/-1}.sv-subject-empty-card{padding:32px 20px;text-align:center;border:1px dashed var(--border-bright);border-radius:16px;background:rgba(168,85,247,.035);color:var(--text-muted)}.sv-subject-empty-card strong{display:block;margin-bottom:6px;color:var(--text-primary)}
+.sv-subject-card .sv-progress-bg{height:8px;margin-top:0;background:color-mix(in srgb,var(--text-muted) 16%,var(--bg-card))}.sv-subject-card .sv-progress-fill{background:linear-gradient(90deg,#7c3aed,#c084fc,#f0abfc);transition:width .35s ease}
+.sv-subject-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:auto;padding-top:15px}.sv-subject-actions small{color:var(--text-muted);font-size:11px}.sv-subject-remove{min-height:31px!important;padding:5px 9px!important;font-size:11px!important;background:var(--bg-card-hover)!important}
+.sv-subject-empty{grid-column:1/-1}.sv-subject-empty-card{padding:32px 20px;text-align:center;border:1px dashed var(--border-bright);border-radius:16px;background:color-mix(in srgb,var(--purple-main) 4%,var(--bg-card));color:var(--text-muted)}.sv-subject-empty-card strong{display:block;margin-bottom:6px;color:var(--text-primary)}
 @media(max-width:760px){.sv-subject-tools{grid-template-columns:1fr}.sv-subject-tools select{width:100%}.sv-subject-form-row{grid-template-columns:minmax(0,1fr) 125px}.sv-subject-form-row button{grid-column:1/-1}.sv-subject-summary{gap:9px}}
 @media(max-width:520px){.sv-subject-hero{padding:19px}.sv-subject-count{width:80px;height:80px;border-radius:18px}.sv-subject-count strong{font-size:27px}.sv-subject-summary{grid-template-columns:1fr}.sv-subject-summary-card{padding:12px}.sv-subject-form-row{grid-template-columns:1fr}.sv-subject-form-row button{grid-column:auto}.sv-subject-grid{grid-template-columns:1fr}}
 `
 
 export default function Subjects() {
   const navigate = useNavigate()
+  const { isRunning, setSeconds, setSelectedSubject, setSelectedSubjectId, setStartTime } = useTimer()
   const [subject, setSubject] = useState('')
   const [goalMinutes, setGoalMinutes] = useState(60)
   const [subjects, setSubjects] = useState([])
@@ -99,6 +101,15 @@ export default function Subjects() {
       setPinned(prev => { const next = prev.filter(x => x !== id); localStorage.setItem('studyverse-pinned-subjects', JSON.stringify(next)); return next })
       setFavorites(prev => { const next = prev.filter(x => x !== id); localStorage.setItem('studyverse-favorite-subjects', JSON.stringify(next)); return next })
     } catch (e) { alert(`Unable to remove subject: ${e.message}`) }
+  }
+
+  function startStudying(sub) {
+    if (isRunning) { alert('Your timer is already running. Stop and save it before switching subjects.'); return }
+    setSelectedSubject(sub.name)
+    setSelectedSubjectId(sub.id)
+    setSeconds(0)
+    setStartTime(null)
+    navigate('/timer', { state: { subjectId: sub.id, subjectName: sub.name } })
   }
 
   function toggleLocal(id, setter, key) {
@@ -183,7 +194,7 @@ export default function Subjects() {
               <button className="sv-subject-star" title={isPinned ? 'Unpin subject' : 'Pin subject'} aria-label={isPinned ? 'Unpin subject' : 'Pin subject'} onClick={() => toggleLocal(sub.id, setPinned, 'studyverse-pinned-subjects')}>{isPinned ? '📌' : '📍'}</button>
             </div>
             <div className="sv-subject-progress"><div className="sv-subject-progress-row"><span>{completed} min studied</span><strong>{Math.round(percentage)}%</strong></div><div className="sv-progress-bg" role="progressbar" aria-valuenow={Math.round(percentage)} aria-valuemin={0} aria-valuemax={100} aria-label={`${sub.name} goal progress`}><div className="sv-progress-fill" style={{ width: `${percentage}%` }} /></div></div>
-            <div className="sv-subject-actions"><small>{percentage >= 100 ? '✓ Goal reached — nice work!' : `${Math.max((sub.goal_minutes || 0) - completed, 0)} min to go`}</small><button className="sv-subject-remove" onClick={() => deleteSubject(sub.id)}>Remove</button></div>
+            <div className="sv-subject-actions"><small>{percentage >= 100 ? '✓ Goal reached — nice work!' : `${Math.max((sub.goal_minutes || 0) - completed, 0)} min to go`}</small><div style={{display:'flex',gap:6,alignItems:'center'}}><button className="sv-primary-button" onClick={() => startStudying(sub)}>Focus</button><button className="sv-subject-remove" onClick={() => deleteSubject(sub.id)}>Remove</button></div></div>
           </article>
         })}
       </div>}
