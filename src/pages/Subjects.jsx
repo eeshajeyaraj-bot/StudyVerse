@@ -35,7 +35,7 @@ const subjectCss = `
 
 export default function Subjects() {
   const navigate = useNavigate()
-  const { isRunning, setSeconds, setSelectedSubject, setSelectedSubjectId, setStartTime } = useTimer()
+  const { isRunning, setIsRunning, setSeconds, setSelectedSubject, setSelectedSubjectId, setStartTime } = useTimer()
   const [subject, setSubject] = useState('')
   const [goalMinutes, setGoalMinutes] = useState(60)
   const [subjects, setSubjects] = useState([])
@@ -108,7 +108,8 @@ export default function Subjects() {
     setSelectedSubject(sub.name)
     setSelectedSubjectId(sub.id)
     setSeconds(0)
-    setStartTime(null)
+    setStartTime(new Date().toISOString())
+    setIsRunning(true)
     navigate('/timer', { state: { subjectId: sub.id, subjectName: sub.name } })
   }
 
